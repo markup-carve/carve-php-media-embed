@@ -7,7 +7,9 @@ namespace MarkupCarve\MediaEmbed;
 use Carve\CarveConverter;
 use Carve\Event\RenderEvent;
 use Carve\Extension\ExtensionInterface;
+use Carve\Node\ContentNodeInterface;
 use Carve\Node\Inline\InlineExtension;
+use Carve\Node\Node;
 use Carve\Renderer\HtmlRenderer;
 use Carve\SafeMode;
 use MediaEmbed\MediaEmbed;
@@ -36,29 +38,39 @@ class MediaEmbedExtension implements ExtensionInterface {
 
     public function register(CarveConverter $converter): void {
         $renderer = $converter->getRenderer();
-        if (!$renderer instanceof HtmlRenderer) {
+
+        if ($renderer instanceof HtmlRenderer) {
+            $converter->on('render.inline_extension', function (RenderEvent $event) use ($renderer): void {
+                $media = $this->resolveEvent($event);
+                if ($media === null) {
+                    return;
+                }
+
+                if ($this->mustDegrade($renderer)) {
+                    $event->setHtml($this->linkFallback($media));
+
+                    return;
+                }
+
+                $event->setHtml($media->getEmbedCode());
+            });
+
             return;
         }
 
-        $converter->on('render.inline_extension', function (RenderEvent $event) use ($renderer): void {
-            $node = $event->getNode();
-            if (!$node instanceof InlineExtension) {
-                return;
-            }
+        // Non-HTML renderers (Markdown, PlainText, Carve) expose on() via
+        // EventDispatcherTrait; ANSI renderer may not — check before wiring.
+        if (method_exists($renderer, 'on')) {
+            $renderer->on('render.inline_extension', function (RenderEvent $event): void {
+                $media = $this->resolveEvent($event);
+                if ($media === null) {
+                    return;
+                }
 
-            $media = $this->resolve($node->getExtensionType(), $event->getChildrenHtml());
-            if ($media === null) {
-                return;
-            }
-
-            if ($this->mustDegrade($renderer)) {
-                $event->setHtml($this->linkFallback($media));
-
-                return;
-            }
-
-            $event->setHtml($media->getEmbedCode());
-        });
+                // Markdown-style link is readable across all plain/markdown targets.
+                $event->setHtml('[' . $media->name() . '](' . $media->getEmbedSrc() . ')');
+            });
+        }
     }
 
     protected function mustDegrade(HtmlRenderer $renderer): bool {
@@ -108,6 +120,46 @@ class MediaEmbedExtension implements ExtensionInterface {
         }
 
         return $this->applyDimensions($this->mediaEmbed->parseId($content, $type));
+    }
+
+    /**
+     * Resolve a MediaObject from a render event, handling both HTML and
+     * non-HTML renderers. HtmlRenderer sets a childrenRenderer on the event
+     * so getChildrenHtml() returns the rendered text; non-HTML renderers
+     * (MarkdownRenderer, PlainTextRenderer, CarveRenderer) do not, so we fall
+     * back to walking the node's children and collecting raw text content.
+     */
+    private function resolveEvent(RenderEvent $event): ?MediaObject {
+        $node = $event->getNode();
+        if (!$node instanceof InlineExtension) {
+            return null;
+        }
+
+        $content = $event->getChildrenHtml();
+        if ($content === '') {
+            $content = $this->extractChildText($node);
+        }
+
+        return $this->resolve($node->getExtensionType(), $content);
+    }
+
+    /**
+     * Recursively collect plain text from a node's children.
+     *
+     * Used as a fallback when the renderer does not provide a childrenRenderer
+     * on the RenderEvent (i.e. non-HTML renderers).
+     */
+    private function extractChildText(Node $node): string {
+        $text = '';
+        foreach ($node->getChildren() as $child) {
+            if ($child instanceof ContentNodeInterface) {
+                $text .= $child->getContent();
+            } else {
+                $text .= $this->extractChildText($child);
+            }
+        }
+
+        return $text;
     }
 
     // MediaEmbed does not expose width/height through call config; apply via setWidth/setHeight.
