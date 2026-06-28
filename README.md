@@ -1,0 +1,150 @@
+# carve-php-media-embed
+
+A [Carve](https://github.com/markup-carve/carve-php) extension that embeds media players
+(YouTube, Vimeo, Spotify, and [33+ other providers](https://github.com/dereuromark/media-embed/blob/master/docs/supported.md))
+using concise inline-extension syntax.
+
+Powered by [dereuromark/media-embed](https://github.com/dereuromark/media-embed).
+
+## Installation
+
+```bash
+composer require markup-carve/carve-php-media-embed
+```
+
+Requires PHP 8.2+ and `markup-carve/carve-php`.
+
+## Quick Start
+
+```php
+$converter = new \Carve\CarveConverter();
+$converter->addExtension(new \MarkupCarve\MediaEmbed\MediaEmbedExtension());
+
+echo $converter->convert(':youtube[dQw4w9WgXcQ]');
+```
+
+## Syntax
+
+Two syntax families are supported.
+
+### Family A - Per-Provider
+
+Use the provider's slug as the directive name and pass the media ID as the content.
+
+```text
+:youtube[dQw4w9WgXcQ]
+:vimeo[123456789]
+:spotify[track/6rqhFgbbKwnb9MLmUQDhG6]
+```
+
+The content is passed to `MediaEmbed::parseId()` using the directive name as the host slug.
+Any of the [33+ supported provider slugs](https://github.com/dereuromark/media-embed/blob/master/docs/supported.md)
+can be used as a directive name.
+
+**Produced output (interactive HTML):**
+
+```html
+<iframe src="//www.youtube.com/embed/dQw4w9WgXcQ" ...></iframe>
+```
+
+### Family C - Catchall URL
+
+Use the `:media` directive (configurable) and pass a full URL. The provider is detected
+automatically via `MediaEmbed::parseUrl()`.
+
+```text
+:media[https://www.youtube.com/watch?v=dQw4w9WgXcQ]
+:media[https://vimeo.com/123456789]
+:media[https://open.spotify.com/track/6rqhFgbbKwnb9MLmUQDhG6]
+```
+
+**Produced output (interactive HTML):**
+
+```html
+<iframe src="//www.youtube.com/embed/dQw4w9WgXcQ" ...></iframe>
+```
+
+> **Note:** `:video` is reserved for a future native local-video directive in Carve.
+> This extension deliberately uses `:media` as the catchall name so the two will not conflict.
+
+## Configuration
+
+Pass config as the second constructor argument:
+
+```php
+$converter->addExtension(new \MarkupCarve\MediaEmbed\MediaEmbedExtension(null, [
+    'catchall'  => 'media',          // directive name for URL-based catchall
+    'width'     => 560,              // iframe width in pixels
+    'height'    => 315,              // iframe height in pixels
+    'providers' => ['youtube', 'vimeo'],  // whitelist; null = all providers
+]));
+```
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `catchall` | `string` | `'media'` | The directive name that accepts full URLs (`:media[URL]`). |
+| `width` | `int` | provider default | Override the iframe `width` attribute. |
+| `height` | `int` | provider default | Override the iframe `height` attribute. |
+| `providers` | `array<string>` or `null` | `null` | Whitelist of allowed provider slugs. Applies to both per-provider and catchall directives. `null` means all providers are allowed. |
+
+### Injecting a Preconfigured MediaEmbed Instance
+
+Pass a `MediaEmbed` instance as the first argument to use a custom configuration - for
+example, to register custom providers, attach a PSR-16 cache, or supply a custom HTTP client:
+
+```php
+use MediaEmbed\MediaEmbed;
+
+$mediaEmbed = new MediaEmbed();
+// $mediaEmbed->addObject('myprovider', [...]);  // custom provider
+// inject cache / HTTP client via MediaEmbed's own API
+
+$converter->addExtension(new \MarkupCarve\MediaEmbed\MediaEmbedExtension($mediaEmbed));
+```
+
+Refer to [media-embed's documentation](https://github.com/dereuromark/media-embed) for the
+full configuration API.
+
+## Output and Degradation
+
+The extension adapts its output to the active renderer and safe-mode settings.
+
+| Context | Output |
+|---|---|
+| HTML renderer, interactive mode (default) | `<iframe ...>` |
+| HTML renderer, static mode (`$converter->setRenderMode('static')`) | `<a href rel="noopener noreferrer">` |
+| HTML renderer, safe mode with `RAW_HTML_STRIP` or `RAW_HTML_ESCAPE` | `<a href rel="noopener noreferrer">` |
+| HTML renderer, safe mode with `RAW_HTML_ALLOW` | `<iframe ...>` |
+| Markdown / PlainText renderer | `[name](embed-url)` |
+| ANSI renderer | Carve default rendering (known limitation - no event hook) |
+
+A plain `new CarveConverter()` has no restricting safe mode configured, so iframes render
+out of the box. If you enable safe mode and still want iframes, explicitly allow raw HTML:
+
+```php
+use Carve\SafeMode;
+
+$converter->setSafeMode(
+    (new \Carve\SafeMode())->setRawHtmlMode(SafeMode::RAW_HTML_ALLOW)
+);
+```
+
+## Security
+
+- Provider URLs come from media-embed's trusted provider templates, not from raw author input.
+- The author-supplied value is only a media ID or full URL, both validated by media-embed
+  before any embed code is produced.
+- Unknown provider slugs and unresolvable URLs silently produce no output (the directive is
+  left unhandled).
+- Version 1.0 injects no arbitrary author-controlled attributes into the iframe; only
+  `width` and `height` set via the extension config are applied.
+- Degraded links are sanitized with `htmlspecialchars` and carry `rel="noopener noreferrer"`.
+
+## Supported Providers
+
+See [media-embed's supported providers list](https://github.com/dereuromark/media-embed/blob/master/docs/supported.md)
+for the full list of 33+ available slugs.
+
+## License
+
+MIT - see [LICENSE](LICENSE).
