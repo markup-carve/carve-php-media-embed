@@ -112,9 +112,11 @@ class MediaEmbedExtension implements ExtensionInterface {
 	/**
 	 * @param string $type
 	 * @param string $content
+	 * @param int|null $width Per-directive width override (takes precedence over config).
+	 * @param int|null $height Per-directive height override (takes precedence over config).
 	 * @return \MediaEmbed\Object\MediaObject|null
 	 */
-	protected function resolve(string $type, string $content): ?MediaObject {
+	protected function resolve(string $type, string $content, ?int $width = null, ?int $height = null): ?MediaObject {
 		$content = trim($content);
 		if ($content === '') {
 			return null;
@@ -129,14 +131,14 @@ class MediaEmbedExtension implements ExtensionInterface {
 				return null;
 			}
 
-			return $this->applyDimensions($media);
+			return $this->applyDimensions($media, $width, $height);
 		}
 
 		if (is_array($providers) && !in_array($type, $providers, true)) {
 			return null;
 		}
 
-		return $this->applyDimensions($this->mediaEmbed->parseId($content, $type));
+		return $this->applyDimensions($this->mediaEmbed->parseId($content, $type), $width, $height);
 	}
 
 	/**
@@ -149,10 +151,15 @@ class MediaEmbedExtension implements ExtensionInterface {
 			return null;
 		}
 
-		$content = $this->extractChildText($node);
-		$media = $this->resolve($node->getExtensionType(), $content);
+		$attrs = $node->getAttributes();
+		$width = $this->parsePositiveInt($attrs['width'] ?? null);
+		$height = $this->parsePositiveInt($attrs['height'] ?? null);
 
-		return $this->applyStartOffset($media, $node->getAttributes());
+		$content = $this->extractChildText($node);
+		$media = $this->resolve($node->getExtensionType(), $content, $width, $height);
+		$media = $this->applyStartOffset($media, $attrs);
+
+		return $this->applyIframeAttributes($media, $node);
 	}
 
 	/**
@@ -178,23 +185,82 @@ class MediaEmbedExtension implements ExtensionInterface {
 	}
 
 	/**
-	 * MediaEmbed does not expose width/height through call config; apply via setWidth/setHeight.
+	 * Apply width/height to the media object. Per-directive values take precedence over config.
 	 *
 	 * @param \MediaEmbed\Object\MediaObject|null $media
+	 * @param int|null $width Per-directive override; falls back to config when null.
+	 * @param int|null $height Per-directive override; falls back to config when null.
 	 * @return \MediaEmbed\Object\MediaObject|null
 	 */
-	private function applyDimensions(?MediaObject $media): ?MediaObject {
+	private function applyDimensions(?MediaObject $media, ?int $width = null, ?int $height = null): ?MediaObject {
 		if ($media === null) {
 			return null;
 		}
-		if (isset($this->config['width'])) {
-			$media->setWidth((int)$this->config['width']);
+
+		$w = $width ?? (isset($this->config['width']) ? (int)$this->config['width'] : null);
+		$h = $height ?? (isset($this->config['height']) ? (int)$this->config['height'] : null);
+
+		if ($w !== null) {
+			$media->setWidth($w);
 		}
-		if (isset($this->config['height'])) {
-			$media->setHeight((int)$this->config['height']);
+		if ($h !== null) {
+			$media->setHeight($h);
 		}
 
 		return $media;
+	}
+
+	/**
+	 * Apply allowlisted iframe attributes from the directive node: title, loading, CSS classes.
+	 *
+	 * Only a fixed set of known-safe attribute names is forwarded; arbitrary author attributes
+	 * are intentionally NOT passed through.
+	 *
+	 * @param \MediaEmbed\Object\MediaObject|null $media
+	 * @param \Carve\Node\Inline\InlineExtension $node
+	 * @return \MediaEmbed\Object\MediaObject|null
+	 */
+	private function applyIframeAttributes(?MediaObject $media, InlineExtension $node): ?MediaObject {
+		if ($media === null) {
+			return null;
+		}
+
+		$attrs = $node->getAttributes();
+
+		// title - accessibility label for the iframe
+		$title = $attrs['title'] ?? null;
+		if ($title !== null && $title !== '') {
+			$media->setAttribute('title', $title);
+		}
+
+		// loading - lazy/eager only; any other value is silently ignored
+		$loading = $attrs['loading'] ?? null;
+		if ($loading === 'lazy' || $loading === 'eager') {
+			$media->setAttribute('loading', $loading);
+		}
+
+		// CSS classes - combines {.class} shorthand and explicit class="..." attribute
+		$classes = $node->getClassList();
+		if ($classes !== []) {
+			$media->setAttribute('class', implode(' ', $classes));
+		}
+
+		return $media;
+	}
+
+	/**
+	 * Parse a string as a positive integer; returns null for empty, non-numeric, or non-positive input.
+	 *
+	 * @param string|null $value
+	 * @return int|null
+	 */
+	private function parsePositiveInt(?string $value): ?int {
+		if ($value === null || $value === '' || !ctype_digit($value)) {
+			return null;
+		}
+		$int = (int)$value;
+
+		return $int > 0 ? $int : null;
 	}
 
 	/**

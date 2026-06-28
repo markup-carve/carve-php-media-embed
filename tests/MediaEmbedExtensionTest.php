@@ -242,4 +242,82 @@ class MediaEmbedExtensionTest extends TestCase {
 		$this->assertStringNotContainsString('start=43', $html);
 	}
 
+	/**
+	 * @return void
+	 */
+	public function testTitleAttributeAppliedToIframe(): void {
+		$html = $this->convert(':youtube[aqz-KE-bpKQ]{title="Intro video"}');
+		$this->assertStringContainsString('<iframe', $html);
+		$this->assertStringContainsString('title="Intro video"', $html);
+	}
+
+	/**
+	 * @return void
+	 */
+	public function testLoadingLazyAppliedToIframe(): void {
+		$html = $this->convert(':youtube[aqz-KE-bpKQ]{loading=lazy}');
+		$this->assertStringContainsString('<iframe', $html);
+		$this->assertStringContainsString('loading="lazy"', $html);
+	}
+
+	/**
+	 * @return void
+	 */
+	public function testLoadingInvalidValueIgnored(): void {
+		$html = $this->convert(':youtube[aqz-KE-bpKQ]{loading=bogus}');
+		$this->assertStringContainsString('<iframe', $html);
+		$this->assertStringNotContainsString('loading=', $html);
+	}
+
+	/**
+	 * @return void
+	 */
+	public function testPerDirectiveWidthHeightOverridesDimensions(): void {
+		$html = $this->convert(':youtube[aqz-KE-bpKQ]{width=800 height=450}');
+		$this->assertStringContainsString('<iframe', $html);
+		$this->assertStringContainsString('800', $html);
+		$this->assertStringContainsString('450', $html);
+	}
+
+	/**
+	 * @return void
+	 */
+	public function testPerDirectiveWidthOverridesGlobalConfig(): void {
+		$html = $this->convert(':youtube[aqz-KE-bpKQ]{width=800}', ['width' => 200]);
+		$this->assertStringContainsString('<iframe', $html);
+		$this->assertStringContainsString('800', $html);
+		$this->assertStringNotContainsString('200', $html);
+	}
+
+	/**
+	 * @return void
+	 */
+	public function testCarveClassShorthandAppliedToIframe(): void {
+		$html = $this->convert(':youtube[aqz-KE-bpKQ]{.responsive}');
+		$this->assertStringContainsString('<iframe', $html);
+		$this->assertStringContainsString('responsive', $html);
+	}
+
+	/**
+	 * @return void
+	 */
+	public function testExplicitClassAttributeAppliedToIframe(): void {
+		$html = $this->convert(':youtube[aqz-KE-bpKQ]{class="a b"}');
+		$this->assertStringContainsString('<iframe', $html);
+		$this->assertStringContainsString('class=', $html);
+		$this->assertStringContainsString('a', $html);
+		$this->assertStringContainsString('b', $html);
+	}
+
+	/**
+	 * @return void
+	 */
+	public function testCompositionOfAllAttributes(): void {
+		$html = $this->convert(':youtube[aqz-KE-bpKQ]{start=90 title="x" loading=lazy}');
+		$this->assertStringContainsString('<iframe', $html);
+		$this->assertStringContainsString('start=90', $html);
+		$this->assertStringContainsString('title="x"', $html);
+		$this->assertStringContainsString('loading="lazy"', $html);
+	}
+
 }

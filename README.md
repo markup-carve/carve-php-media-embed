@@ -67,9 +67,32 @@ automatically via `MediaEmbed::parseUrl()`.
 > **Note:** `:video` is reserved for a future native local-video directive in Carve.
 > This extension deliberately uses `:media` as the catchall name so the two will not conflict.
 
-### Start Offset
+### Directive Attributes
 
-For providers that support playback start times (currently YouTube), add a `start` attribute
+A fixed allowlist of directive attributes is forwarded onto the produced iframe. Only these
+named attributes are recognized; arbitrary author-supplied attribute names are intentionally
+**not** forwarded.
+
+| Attribute | Values | Description |
+|---|---|---|
+| `start` / `t` | non-negative integer (optional `s` suffix) | Playback start offset in seconds. Supported by YouTube and any other provider that declares timestamp support. Silently ignored for all other providers. |
+| `title` | any non-empty string | Sets the iframe `title` attribute for accessibility (screen readers). |
+| `loading` | `lazy` or `eager` | Sets the iframe `loading` attribute for browser-native lazy loading. Any other value is silently ignored. |
+| `width` | positive integer | Per-embed iframe width in pixels. Overrides the global `width` config for this embed only. |
+| `height` | positive integer | Per-embed iframe height in pixels. Overrides the global `height` config for this embed only. |
+| `.className` | CSS class name | Carve shorthand for adding a CSS class (e.g. `{.responsive}`). Multiple classes can be added: `{.a .b}`. Forwarded as the iframe `class` attribute. |
+| `class` | space-separated class names | Explicit CSS class attribute (e.g. `{class="a b"}`). Combined with any `{.class}` shorthand classes. |
+
+Attributes compose freely:
+
+```text
+:youtube[dQw4w9WgXcQ]{start=90 title="My video" loading=lazy .responsive}
+:youtube[dQw4w9WgXcQ]{width=800 height=450}
+```
+
+#### Start Offset
+
+For YouTube (and any provider that declares timestamp support), add a `start` attribute
 to begin the embed at a specific second. The optional trailing `s` suffix is stripped
 automatically. The `t` attribute is accepted as an alias for `start`.
 
