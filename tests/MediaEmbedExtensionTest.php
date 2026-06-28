@@ -49,4 +49,28 @@ class MediaEmbedExtensionTest extends TestCase {
         $this->assertStringNotContainsString('<iframe', $html);
     }
 
+    public function testProviderWhitelistBlocksOthers(): void {
+        $html = $this->convert(':vimeo[123456789]', ['providers' => ['youtube']]);
+        $this->assertStringNotContainsString('<iframe', $html);
+    }
+
+    public function testProviderWhitelistAllowsListed(): void {
+        $html = $this->convert(':youtube[dQw4w9WgXcQ]', ['providers' => ['youtube']]);
+        $this->assertStringContainsString('<iframe', $html);
+    }
+
+    public function testWhitelistAlsoGatesCatchall(): void {
+        $html = $this->convert(
+            ':media[https://vimeo.com/123456789]',
+            ['providers' => ['youtube']],
+        );
+        $this->assertStringNotContainsString('<iframe', $html);
+    }
+
+    public function testWidthHeightConfigAppliedToIframe(): void {
+        $html = $this->convert(':youtube[dQw4w9WgXcQ]', ['width' => 800, 'height' => 450]);
+        $this->assertStringContainsString('800', $html);
+        $this->assertStringContainsString('450', $html);
+    }
+
 }

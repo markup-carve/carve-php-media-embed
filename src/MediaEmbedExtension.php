@@ -17,13 +17,13 @@ class MediaEmbedExtension implements ExtensionInterface {
     protected MediaEmbed $mediaEmbed;
 
     /**
-     * @var array<string, mixed>
+     * @var array{catchall: string, providers: array<string>|null, width?: int, height?: int, ...}
      */
     protected array $config;
 
     /**
      * @param \MediaEmbed\MediaEmbed|null $mediaEmbed
-     * @param array<string, mixed> $config
+     * @param array{catchall?: string, providers?: array<string>|null, width?: int, height?: int, ...} $config
      */
     public function __construct(?MediaEmbed $mediaEmbed = null, array $config = []) {
         $this->mediaEmbed = $mediaEmbed ?? new MediaEmbed();
@@ -60,11 +60,38 @@ class MediaEmbedExtension implements ExtensionInterface {
             return null;
         }
 
+        $providers = $this->config['providers'];
+
         if ($type === $this->config['catchall']) {
-            return $this->mediaEmbed->parseUrl($content);
+            $media = $this->mediaEmbed->parseUrl($content);
+            // Whitelist also gates the catchall: reject a resolved provider not in the list.
+            if ($media !== null && is_array($providers) && !in_array($media->slug(), $providers, true)) {
+                return null;
+            }
+
+            return $this->applyDimensions($media);
         }
 
-        return $this->mediaEmbed->parseId($content, $type);
+        if (is_array($providers) && !in_array($type, $providers, true)) {
+            return null;
+        }
+
+        return $this->applyDimensions($this->mediaEmbed->parseId($content, $type));
+    }
+
+    // MediaEmbed does not expose width/height through call config; apply via setWidth/setHeight.
+    private function applyDimensions(?MediaObject $media): ?MediaObject {
+        if ($media === null) {
+            return null;
+        }
+        if (isset($this->config['width'])) {
+            $media->setWidth((int)$this->config['width']);
+        }
+        if (isset($this->config['height'])) {
+            $media->setHeight((int)$this->config['height']);
+        }
+
+        return $media;
     }
 
 }
