@@ -187,7 +187,7 @@ $converter->setSafeMode(
 ## Supported Providers
 
 See [media-embed's supported providers list](https://github.com/dereuromark/media-embed/blob/master/docs/supported.md)
-for the full list of 30+ available slugs.
+for the full list of ~30 available slugs.
 
 ## License
 
