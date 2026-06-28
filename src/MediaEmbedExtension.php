@@ -147,6 +147,17 @@ class MediaEmbedExtension implements ExtensionInterface
             return null;
         }
 
+        // If content is a full URL, resolve via parseUrl() and enforce that the
+        // detected provider matches the directive name (e.g. :youtube[vimeo URL] -> no embed).
+        if (preg_match('/^https?:\/\//i', $content)) {
+            $media = $this->mediaEmbed->parseUrl($content);
+            if ($media === null || $media->slug() !== $type) {
+                return null;
+            }
+
+            return $this->applyDimensions($media, $width, $height);
+        }
+
         return $this->applyDimensions($this->mediaEmbed->parseId($content, $type), $width, $height);
     }
 

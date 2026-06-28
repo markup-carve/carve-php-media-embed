@@ -350,4 +350,85 @@ class MediaEmbedExtensionTest extends TestCase
         $this->assertStringContainsString('title="x"', $html);
         $this->assertStringContainsString('loading="lazy"', $html);
     }
+
+    // --- Per-provider URL content ---
+
+    /**
+     * Bare ID path still works (regression guard).
+     *
+     * @return void
+     */
+    public function testPerProviderBareIdRendersCleanEmbed(): void
+    {
+        $html = $this->convert(':youtube[aqz-KE-bpKQ]');
+        $this->assertStringContainsString('<iframe', $html);
+        $this->assertStringContainsString('embed/aqz-KE-bpKQ', $html);
+        $this->assertStringNotContainsString('embed/https', $html);
+    }
+
+    /**
+     * Full YouTube watch URL inside :youtube[] resolves to the same clean embed.
+     *
+     * @return void
+     */
+    public function testPerProviderFullUrlRendersCleanEmbed(): void
+    {
+        $html = $this->convert(':youtube[https://www.youtube.com/watch?v=aqz-KE-bpKQ]');
+        $this->assertStringContainsString('<iframe', $html);
+        $this->assertStringContainsString('embed/aqz-KE-bpKQ', $html);
+        // The broken form must never appear.
+        $this->assertStringNotContainsString('embed/https', $html);
+    }
+
+    /**
+     * Short youtu.be URL inside :youtube[] resolves to the same clean embed.
+     *
+     * @return void
+     */
+    public function testPerProviderShortUrlRendersCleanEmbed(): void
+    {
+        $html = $this->convert(':youtube[https://youtu.be/aqz-KE-bpKQ]');
+        $this->assertStringContainsString('<iframe', $html);
+        $this->assertStringContainsString('embed/aqz-KE-bpKQ', $html);
+        $this->assertStringNotContainsString('embed/https', $html);
+    }
+
+    /**
+     * A Vimeo URL inside :youtube[] must produce NO iframe (provider mismatch).
+     *
+     * @return void
+     */
+    public function testPerProviderUrlMismatchProducesNoIframe(): void
+    {
+        $html = $this->convert(':youtube[https://vimeo.com/76979871]');
+        $this->assertStringNotContainsString('<iframe', $html);
+    }
+
+    /**
+     * Whitelist is still respected when content is a URL.
+     *
+     * @return void
+     */
+    public function testPerProviderUrlRespectsWhitelist(): void
+    {
+        // youtube not in whitelist -> no iframe even for a valid YouTube URL.
+        $html = $this->convert(
+            ':youtube[https://www.youtube.com/watch?v=aqz-KE-bpKQ]',
+            ['providers' => ['vimeo']],
+        );
+        $this->assertStringNotContainsString('<iframe', $html);
+    }
+
+    /**
+     * Directive attributes still compose when content is a full URL.
+     *
+     * @return void
+     */
+    public function testPerProviderUrlWithTitleAttribute(): void
+    {
+        $html = $this->convert(':youtube[https://www.youtube.com/watch?v=aqz-KE-bpKQ]{title="x"}');
+        $this->assertStringContainsString('<iframe', $html);
+        $this->assertStringContainsString('embed/aqz-KE-bpKQ', $html);
+        $this->assertStringContainsString('title="x"', $html);
+    }
 }

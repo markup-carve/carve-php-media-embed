@@ -29,15 +29,24 @@ Two syntax families are supported.
 
 ### Family A - Per-Provider
 
-Use the provider's slug as the directive name and pass the media ID as the content.
+Use the provider's slug as the directive name and pass either a bare media ID or a full URL
+of that same provider as the content.
 
 ```text
 :youtube[dQw4w9WgXcQ]
+:youtube[https://www.youtube.com/watch?v=dQw4w9WgXcQ]
+:youtube[https://youtu.be/dQw4w9WgXcQ]
 :vimeo[123456789]
 :spotify[track/6rqhFgbbKwnb9MLmUQDhG6]
 ```
 
-The content is passed to `MediaEmbed::parseId()` using the directive name as the host slug.
+When the content is a bare ID it is resolved via `MediaEmbed::parseId()` using the directive
+name as the host slug. When the content starts with `http://` or `https://` it is resolved
+via `MediaEmbed::parseUrl()` and the detected provider slug must match the directive name -
+a URL that resolves to a different provider is ignored and leaves the directive unhandled (no
+embed is produced). Use `:media[URL]` if you want automatic provider detection without
+enforcing a match.
+
 Any of the [30+ supported provider slugs](https://github.com/dereuromark/media-embed/blob/master/docs/supported.md)
 can be used as a directive name.
 
