@@ -9,6 +9,7 @@ use Carve\Event\RenderEvent;
 use Carve\Extension\ExtensionInterface;
 use Carve\Node\Inline\InlineExtension;
 use Carve\Renderer\HtmlRenderer;
+use Carve\SafeMode;
 use MediaEmbed\MediaEmbed;
 use MediaEmbed\Object\MediaObject;
 
@@ -39,7 +40,7 @@ class MediaEmbedExtension implements ExtensionInterface {
             return;
         }
 
-        $converter->on('render.inline_extension', function (RenderEvent $event): void {
+        $converter->on('render.inline_extension', function (RenderEvent $event) use ($renderer): void {
             $node = $event->getNode();
             if (!$node instanceof InlineExtension) {
                 return;
@@ -50,8 +51,38 @@ class MediaEmbedExtension implements ExtensionInterface {
                 return;
             }
 
+            if ($this->mustDegrade($renderer)) {
+                $event->setHtml($this->linkFallback($media));
+
+                return;
+            }
+
             $event->setHtml($media->getEmbedCode());
         });
+    }
+
+    protected function mustDegrade(HtmlRenderer $renderer): bool {
+        if ($renderer->isStaticMode()) {
+            return true;
+        }
+
+        $safeMode = $renderer->getSafeMode();
+        if ($safeMode === null) {
+            return false;
+        }
+
+        return in_array(
+            $safeMode->getRawHtmlMode(),
+            [SafeMode::RAW_HTML_STRIP, SafeMode::RAW_HTML_ESCAPE],
+            true,
+        );
+    }
+
+    protected function linkFallback(MediaObject $media): string {
+        $href = htmlspecialchars($media->getEmbedSrc(), ENT_QUOTES, 'UTF-8');
+        $text = htmlspecialchars($media->name(), ENT_QUOTES, 'UTF-8');
+
+        return '<a href="' . $href . '" rel="noopener noreferrer">' . $text . '</a>';
     }
 
     protected function resolve(string $type, string $content): ?MediaObject {

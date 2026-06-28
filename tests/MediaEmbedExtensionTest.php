@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace MarkupCarve\MediaEmbed\Test;
 
 use Carve\CarveConverter;
+use Carve\SafeMode;
 use MarkupCarve\MediaEmbed\MediaEmbedExtension;
 use PHPUnit\Framework\TestCase;
 
@@ -71,6 +72,51 @@ class MediaEmbedExtensionTest extends TestCase {
         $html = $this->convert(':youtube[dQw4w9WgXcQ]', ['width' => 800, 'height' => 450]);
         $this->assertStringContainsString('800', $html);
         $this->assertStringContainsString('450', $html);
+    }
+
+    public function testSafeModeStripEmitsLinkNotIframe(): void {
+        $converter = new CarveConverter();
+        $converter->setSafeMode((new SafeMode())->setRawHtmlMode(SafeMode::RAW_HTML_STRIP));
+        $converter->addExtension(new MediaEmbedExtension());
+        $html = $converter->convert(':youtube[dQw4w9WgXcQ]');
+
+        $this->assertStringNotContainsString('<iframe', $html);
+        $this->assertStringContainsString('<a ', $html);
+        $this->assertStringContainsString('dQw4w9WgXcQ', $html);
+        $this->assertStringContainsString('rel="noopener noreferrer"', $html);
+    }
+
+    public function testSafeModeEscapeEmitsLinkNotIframe(): void {
+        $converter = new CarveConverter();
+        $converter->setSafeMode((new SafeMode())->setRawHtmlMode(SafeMode::RAW_HTML_ESCAPE));
+        $converter->addExtension(new MediaEmbedExtension());
+        $html = $converter->convert(':youtube[dQw4w9WgXcQ]');
+
+        $this->assertStringNotContainsString('<iframe', $html);
+        $this->assertStringContainsString('<a ', $html);
+        $this->assertStringContainsString('dQw4w9WgXcQ', $html);
+        $this->assertStringContainsString('rel="noopener noreferrer"', $html);
+    }
+
+    public function testSafeModeAllowStillEmitsIframe(): void {
+        $converter = new CarveConverter();
+        $converter->setSafeMode((new SafeMode())->setRawHtmlMode(SafeMode::RAW_HTML_ALLOW));
+        $converter->addExtension(new MediaEmbedExtension());
+        $html = $converter->convert(':youtube[dQw4w9WgXcQ]');
+
+        $this->assertStringContainsString('<iframe', $html);
+    }
+
+    public function testStaticModeEmitsLinkNotIframe(): void {
+        $converter = new CarveConverter();
+        $converter->setRenderMode('static');
+        $converter->addExtension(new MediaEmbedExtension());
+        $html = $converter->convert(':youtube[dQw4w9WgXcQ]');
+
+        $this->assertStringNotContainsString('<iframe', $html);
+        $this->assertStringContainsString('<a ', $html);
+        $this->assertStringContainsString('dQw4w9WgXcQ', $html);
+        $this->assertStringContainsString('rel="noopener noreferrer"', $html);
     }
 
 }
