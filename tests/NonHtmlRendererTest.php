@@ -30,9 +30,9 @@ class NonHtmlRendererTest extends TestCase {
 		$converter->addExtension(new MediaEmbedExtension());
 		$out = $converter->convert(':youtube[dQw4w9WgXcQ]');
 
-		// Must be a Markdown-style link [Name](url) - not an HTML anchor.
+		// Must be a Markdown-style link [Name](<url>) with angle-bracket URL - not an HTML anchor.
 		// getEmbedSrc() may return a protocol-relative URL (//host/...).
-		$this->assertMatchesRegularExpression('/\[.+\]\((https?:)?\/\/.+\)/', $out);
+		$this->assertMatchesRegularExpression('/\[.+\]\(<(https?:)?\/\/.+>\)/', $out);
 		$this->assertStringNotContainsString('<a ', $out);
 	}
 
@@ -46,6 +46,7 @@ class NonHtmlRendererTest extends TestCase {
 
 		// Extension must not emit a link for non-media directives.
 		$this->assertStringNotContainsString('](http', $out);
+		$this->assertStringNotContainsString('](', $out);
 		$this->assertStringContainsString('hidden text', $out);
 	}
 

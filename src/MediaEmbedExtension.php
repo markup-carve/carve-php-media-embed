@@ -72,7 +72,7 @@ class MediaEmbedExtension implements ExtensionInterface {
 				}
 
 				// Markdown-style link is readable across all plain/markdown targets.
-				$event->setHtml('[' . $media->name() . '](' . $media->getEmbedSrc() . ')');
+				$event->setHtml('[' . $media->name() . '](<' . $media->getEmbedSrc() . '>)');
 			});
 		}
 	}
@@ -115,7 +115,7 @@ class MediaEmbedExtension implements ExtensionInterface {
 	 * @return \MediaEmbed\Object\MediaObject|null
 	 */
 	protected function resolve(string $type, string $content): ?MediaObject {
-		$content = trim(strip_tags($content));
+		$content = trim($content);
 		if ($content === '') {
 			return null;
 		}
@@ -140,12 +140,6 @@ class MediaEmbedExtension implements ExtensionInterface {
 	}
 
 	/**
-	 * Resolve a MediaObject from a render event, handling both HTML and
-	 * non-HTML renderers. HtmlRenderer sets a childrenRenderer on the event
-	 * so getChildrenHtml() returns the rendered text; non-HTML renderers
-	 * (MarkdownRenderer, PlainTextRenderer, CarveRenderer) do not, so we fall
-	 * back to walking the node's children and collecting raw text content.
-	 *
 	 * @param \Carve\Event\RenderEvent $event
 	 * @return \MediaEmbed\Object\MediaObject|null
 	 */
@@ -155,10 +149,7 @@ class MediaEmbedExtension implements ExtensionInterface {
 			return null;
 		}
 
-		$content = $event->getChildrenHtml();
-		if ($content === '') {
-			$content = $this->extractChildText($node);
-		}
+		$content = $this->extractChildText($node);
 
 		return $this->resolve($node->getExtensionType(), $content);
 	}

@@ -1,7 +1,7 @@
 # carve-php-media-embed
 
 A [Carve](https://github.com/markup-carve/carve-php) extension that embeds media players
-(YouTube, Vimeo, Spotify, and [33+ other providers](https://github.com/dereuromark/media-embed/blob/master/docs/supported.md))
+(YouTube, Vimeo, Spotify, and [30+ other providers](https://github.com/dereuromark/media-embed/blob/master/docs/supported.md))
 using concise inline-extension syntax.
 
 Powered by [dereuromark/media-embed](https://github.com/dereuromark/media-embed).
@@ -38,7 +38,7 @@ Use the provider's slug as the directive name and pass the media ID as the conte
 ```
 
 The content is passed to `MediaEmbed::parseId()` using the directive name as the host slug.
-Any of the [33+ supported provider slugs](https://github.com/dereuromark/media-embed/blob/master/docs/supported.md)
+Any of the [30+ supported provider slugs](https://github.com/dereuromark/media-embed/blob/master/docs/supported.md)
 can be used as a directive name.
 
 **Produced output (interactive HTML):**
@@ -47,7 +47,7 @@ can be used as a directive name.
 <iframe src="//www.youtube.com/embed/dQw4w9WgXcQ" ...></iframe>
 ```
 
-### Family C - Catchall URL
+### Family B - Catchall URL
 
 Use the `:media` directive (configurable) and pass a full URL. The provider is detected
 automatically via `MediaEmbed::parseUrl()`.
@@ -143,7 +143,7 @@ $converter->setSafeMode(
 ## Supported Providers
 
 See [media-embed's supported providers list](https://github.com/dereuromark/media-embed/blob/master/docs/supported.md)
-for the full list of 33+ available slugs.
+for the full list of 30+ available slugs.
 
 ## License
 

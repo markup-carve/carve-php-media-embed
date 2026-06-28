@@ -45,6 +45,17 @@ class MediaEmbedExtensionTest extends TestCase {
 	/**
 	 * @return void
 	 */
+	public function testCatchallUrlWithTimestampRetainsTimestamp(): void {
+		// Regression: HTML-escaped & in getChildrenHtml() broke params after first & (e.g. &t=43s became &amp;t=43s).
+		$html = $this->convert(':media[https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=43s]');
+		$this->assertStringContainsString('<iframe', $html);
+		$this->assertStringContainsString('dQw4w9WgXcQ', $html);
+		$this->assertStringContainsString('start=43', $html);
+	}
+
+	/**
+	 * @return void
+	 */
 	public function testCatchallVimeoUrlRendersIframe(): void {
 		$html = $this->convert(':media[https://vimeo.com/123456789]');
 		$this->assertStringContainsString('<iframe', $html);
