@@ -36,4 +36,17 @@ class MediaEmbedExtensionTest extends TestCase {
         $this->assertStringContainsString('123456789', $html);
     }
 
+    public function testUnknownDirectiveIsNotClaimed(): void {
+        // 'spoiler' is not a media provider; extension must not emit an iframe,
+        // leaving the node for Carve's default render / other extensions.
+        $html = $this->convert(':spoiler[hidden text]');
+        $this->assertStringNotContainsString('<iframe', $html);
+        $this->assertStringContainsString('hidden text', $html);
+    }
+
+    public function testUnknownProviderSlugIsNotClaimed(): void {
+        $html = $this->convert(':notaprovider[whatever]');
+        $this->assertStringNotContainsString('<iframe', $html);
+    }
+
 }
