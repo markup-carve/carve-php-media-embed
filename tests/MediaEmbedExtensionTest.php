@@ -24,4 +24,16 @@ class MediaEmbedExtensionTest extends TestCase {
         $this->assertStringContainsString('youtube', $html);
     }
 
+    public function testCatchallUrlRendersIframe(): void {
+        $html = $this->convert(':media[https://www.youtube.com/watch?v=dQw4w9WgXcQ]');
+        $this->assertStringContainsString('<iframe', $html);
+        $this->assertStringContainsString('dQw4w9WgXcQ', $html);
+    }
+
+    public function testCatchallVimeoUrlRendersIframe(): void {
+        $html = $this->convert(':media[https://vimeo.com/123456789]');
+        $this->assertStringContainsString('<iframe', $html);
+        $this->assertStringContainsString('123456789', $html);
+    }
+
 }
