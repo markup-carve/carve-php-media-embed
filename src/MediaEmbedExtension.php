@@ -150,8 +150,9 @@ class MediaEmbedExtension implements ExtensionInterface {
 		}
 
 		$content = $this->extractChildText($node);
+		$media = $this->resolve($node->getExtensionType(), $content);
 
-		return $this->resolve($node->getExtensionType(), $content);
+		return $this->applyStartOffset($media, $node->getAttributes());
 	}
 
 	/**
@@ -192,6 +193,52 @@ class MediaEmbedExtension implements ExtensionInterface {
 		if (isset($this->config['height'])) {
 			$media->setHeight((int)$this->config['height']);
 		}
+
+		return $media;
+	}
+
+	/**
+	 * Apply a start-offset to the media object if the node carries a `start` or `t` attribute
+	 * and the resolved provider supports timestamps.
+	 *
+	 * Accepts an optional trailing 's' suffix (e.g. '90s' → 90). Invalid or non-numeric values
+	 * are silently ignored. Providers that do not declare `supports-timestamp` are also skipped.
+	 *
+	 * When both a URL-embedded timestamp and a `start`/`t` attribute are present, the attribute
+	 * wins because it is applied after the MediaObject is constructed.
+	 *
+	 * @param \MediaEmbed\Object\MediaObject|null $media
+	 * @param array<string, string> $nodeAttributes
+	 * @return \MediaEmbed\Object\MediaObject|null
+	 */
+	private function applyStartOffset(?MediaObject $media, array $nodeAttributes): ?MediaObject {
+		if ($media === null) {
+			return null;
+		}
+
+		// Prefer 'start'; fall back to 't' (YouTube-style alias).
+		$raw = $nodeAttributes['start'] ?? $nodeAttributes['t'] ?? null;
+		if ($raw === null) {
+			return $media;
+		}
+
+		// Strip optional trailing 's' (e.g. '90s' → '90').
+		$raw = rtrim((string)$raw, 's');
+
+		// Must be a non-negative integer string; anything else is silently ignored.
+		if ($raw === '' || !ctype_digit($raw)) {
+			return $media;
+		}
+
+		$seconds = (int)$raw;
+
+		// Only apply when the resolved provider declares timestamp support.
+		$stub = $this->mediaEmbed->getHosts()[$media->slug()] ?? null;
+		if ($stub === null || empty($stub['supports-timestamp'])) {
+			return $media;
+		}
+
+		$media->setParam($stub['timestamp-param'] ?? 'start', $seconds);
 
 		return $media;
 	}

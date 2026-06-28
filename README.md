@@ -67,6 +67,27 @@ automatically via `MediaEmbed::parseUrl()`.
 > **Note:** `:video` is reserved for a future native local-video directive in Carve.
 > This extension deliberately uses `:media` as the catchall name so the two will not conflict.
 
+### Start Offset
+
+For providers that support playback start times (currently YouTube), add a `start` attribute
+to begin the embed at a specific second. The optional trailing `s` suffix is stripped
+automatically. The `t` attribute is accepted as an alias for `start`.
+
+```text
+:youtube[dQw4w9WgXcQ]{start=90}
+:youtube[dQw4w9WgXcQ]{start=90s}
+:youtube[dQw4w9WgXcQ]{t=90}
+:media[https://www.youtube.com/watch?v=dQw4w9WgXcQ]{start=90}
+```
+
+All four produce an iframe src containing `start=90`.
+
+When a URL already carries a timestamp (e.g. `?t=43s`) **and** the directive also has a
+`start`/`t` attribute, the directive attribute wins.
+
+Providers that do not declare timestamp support ignore the attribute silently; the iframe
+still renders normally.
+
 ## Configuration
 
 Pass config as the second constructor argument:
@@ -136,8 +157,8 @@ $converter->setSafeMode(
   before any embed code is produced.
 - Unknown provider slugs and unresolvable URLs silently produce no output (the directive is
   left unhandled).
-- Version 1.0 injects no arbitrary author-controlled attributes into the iframe; only
-  `width` and `height` set via the extension config are applied.
+- The `start`/`t` directive attributes are validated as non-negative integers before being
+  appended as query parameters to the provider URL. Non-numeric values are silently ignored.
 - Degraded links are sanitized with `htmlspecialchars` and carry `rel="noopener noreferrer"`.
 
 ## Supported Providers

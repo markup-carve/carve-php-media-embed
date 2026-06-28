@@ -174,4 +174,72 @@ class MediaEmbedExtensionTest extends TestCase {
 		$this->assertStringContainsString('rel="noopener noreferrer"', $html);
 	}
 
+	/**
+	 * @return void
+	 */
+	public function testStartAttributeAppendsStartParam(): void {
+		$html = $this->convert(':youtube[aqz-KE-bpKQ]{start=90}');
+		$this->assertStringContainsString('<iframe', $html);
+		$this->assertStringContainsString('start=90', $html);
+	}
+
+	/**
+	 * @return void
+	 */
+	public function testTAttributeIsAliasForStart(): void {
+		$html = $this->convert(':youtube[aqz-KE-bpKQ]{t=90}');
+		$this->assertStringContainsString('<iframe', $html);
+		$this->assertStringContainsString('start=90', $html);
+	}
+
+	/**
+	 * @return void
+	 */
+	public function testStartAttributeWithTrailingSIsStripped(): void {
+		$html = $this->convert(':youtube[aqz-KE-bpKQ]{start=90s}');
+		$this->assertStringContainsString('<iframe', $html);
+		$this->assertStringContainsString('start=90', $html);
+		$this->assertStringNotContainsString('start=90s', $html);
+	}
+
+	/**
+	 * @return void
+	 */
+	public function testInvalidStartAttributeIsIgnored(): void {
+		$html = $this->convert(':youtube[aqz-KE-bpKQ]{start=abc}');
+		$this->assertStringContainsString('<iframe', $html);
+		$this->assertStringNotContainsString('start=abc', $html);
+		$this->assertStringNotContainsString('start=', $html);
+	}
+
+	/**
+	 * @return void
+	 */
+	public function testStartAttributeIgnoredForProviderWithoutTimestampSupport(): void {
+		// Vimeo does not declare supports-timestamp; start param must not appear.
+		$html = $this->convert(':vimeo[123456789]{start=90}');
+		$this->assertStringContainsString('<iframe', $html);
+		$this->assertStringNotContainsString('start=90', $html);
+	}
+
+	/**
+	 * @return void
+	 */
+	public function testStartAttributeOnCatchallAppendsStartParam(): void {
+		$html = $this->convert(':media[https://www.youtube.com/watch?v=aqz-KE-bpKQ]{start=90}');
+		$this->assertStringContainsString('<iframe', $html);
+		$this->assertStringContainsString('start=90', $html);
+	}
+
+	/**
+	 * @return void
+	 */
+	public function testStartAttributeWinsOverUrlTimestamp(): void {
+		// URL carries t=43s; directive attribute {start=90} should take precedence.
+		$html = $this->convert(':media[https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=43s]{start=90}');
+		$this->assertStringContainsString('<iframe', $html);
+		$this->assertStringContainsString('start=90', $html);
+		$this->assertStringNotContainsString('start=43', $html);
+	}
+
 }
