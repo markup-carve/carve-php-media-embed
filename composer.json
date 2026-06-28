@@ -1,0 +1,33 @@
+{
+    "name": "markup-carve/carve-php-media-embed",
+    "description": "Opt-in Carve extension that embeds audio/video from 30+ providers via dereuromark/media-embed.",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.2",
+        "markup-carve/carve-php": "*",
+        "dereuromark/media-embed": "dev-next as 1.0.x-dev"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5 || ^11.0",
+        "phpstan/phpstan": "^1.11"
+    },
+    "autoload": {
+        "psr-4": {
+            "MarkupCarve\\MediaEmbed\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "MarkupCarve\\MediaEmbed\\Test\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "stan": "phpstan analyse",
+        "cs-check": "phpcs",
+        "cs-fix": "phpcbf"
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
