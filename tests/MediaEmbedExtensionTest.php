@@ -278,11 +278,12 @@ class MediaEmbedExtensionTest extends TestCase
     /**
      * @return void
      */
-    public function testLoadingLazyAppliedToIframe(): void
+    public function testLoadingAppliedToIframe(): void
     {
-        $html = $this->convert(':youtube[aqz-KE-bpKQ]{loading=lazy}');
+        // media-embed defaults to loading="lazy"; use eager to prove the attribute overrides it.
+        $html = $this->convert(':youtube[aqz-KE-bpKQ]{loading=eager}');
         $this->assertStringContainsString('<iframe', $html);
-        $this->assertStringContainsString('loading="lazy"', $html);
+        $this->assertStringContainsString('loading="eager"', $html);
     }
 
     /**
@@ -292,7 +293,8 @@ class MediaEmbedExtensionTest extends TestCase
     {
         $html = $this->convert(':youtube[aqz-KE-bpKQ]{loading=bogus}');
         $this->assertStringContainsString('<iframe', $html);
-        $this->assertStringNotContainsString('loading=', $html);
+        // The invalid value must not be applied; media-embed's default loading stays untouched.
+        $this->assertStringNotContainsString('loading="bogus"', $html);
     }
 
     /**
