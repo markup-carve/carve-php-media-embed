@@ -10,15 +10,21 @@ use PHPUnit\Framework\TestCase;
 
 class DependencySmokeTest extends TestCase {
 
-    public function testDependenciesAutoload(): void {
-        $this->assertTrue(class_exists(CarveConverter::class));
-        $this->assertTrue(class_exists(MediaEmbed::class));
-    }
+	/**
+	 * @return void
+	 */
+	public function testDependenciesAutoload(): void {
+		$this->assertTrue(class_exists(CarveConverter::class));
+		$this->assertTrue(class_exists(MediaEmbed::class));
+	}
 
-    public function testCarveConvertsPlainText(): void {
-        $converter = new CarveConverter();
-        $html = $converter->convert('Hello');
-        $this->assertStringContainsString('Hello', $html);
-    }
+	/**
+	 * @return void
+	 */
+	public function testCarveConvertsPlainText(): void {
+		$converter = new CarveConverter();
+		$html = $converter->convert('Hello');
+		$this->assertStringContainsString('Hello', $html);
+	}
 
 }
