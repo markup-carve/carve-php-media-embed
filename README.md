@@ -147,9 +147,10 @@ example, to register custom providers, attach a PSR-16 cache, or supply a custom
 
 ```php
 use MediaEmbed\MediaEmbed;
+use MediaEmbed\Provider\ProviderConfig;
 
 $mediaEmbed = new MediaEmbed();
-// $mediaEmbed->addObject('myprovider', [...]);  // custom provider
+// $mediaEmbed->addProviderConfig(ProviderConfig::fromArray([...]));  // custom provider
 // inject cache / HTTP client via MediaEmbed's own API
 
 $converter->addExtension(new \MarkupCarve\MediaEmbed\MediaEmbedExtension($mediaEmbed));
