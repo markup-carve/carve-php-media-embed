@@ -17,7 +17,7 @@
     "require": {
         "php": ">=8.2",
         "markup-carve/carve-php": "*",
-        "dereuromark/media-embed": "dev-next as 1.0.x-dev"
+        "dereuromark/media-embed": "^1.0"
     },
     "require-dev": {
         "phpunit/phpunit": "^11.5 || ^12.0 || ^13.0",

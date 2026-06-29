@@ -227,10 +227,10 @@ class MediaEmbedExtension implements ExtensionInterface
         $h = $height ?? (isset($this->config['height']) ? (int)$this->config['height'] : null);
 
         if ($w !== null) {
-            $media->setWidth($w);
+            $media = $media->withWidth($w);
         }
         if ($h !== null) {
-            $media->setHeight($h);
+            $media = $media->withHeight($h);
         }
 
         return $media;
@@ -258,19 +258,19 @@ class MediaEmbedExtension implements ExtensionInterface
         // title - accessibility label for the iframe
         $title = $attrs['title'] ?? null;
         if ($title !== null && $title !== '') {
-            $media->setAttribute('title', $title);
+            $media = $media->withAttribute('title', $title);
         }
 
         // loading - lazy/eager only; any other value is silently ignored
         $loading = $attrs['loading'] ?? null;
         if ($loading === 'lazy' || $loading === 'eager') {
-            $media->setAttribute('loading', $loading);
+            $media = $media->withAttribute('loading', $loading);
         }
 
         // CSS classes - combines {.class} shorthand and explicit class="..." attribute
         $classes = $node->getClassList();
         if ($classes !== []) {
-            $media->setAttribute('class', implode(' ', $classes));
+            $media = $media->withAttribute('class', implode(' ', $classes));
         }
 
         return $media;
@@ -336,7 +336,7 @@ class MediaEmbedExtension implements ExtensionInterface
             return $media;
         }
 
-        $media->setParam($stub['timestamp-param'] ?? 'start', $seconds);
+        $media = $media->withParam($stub['timestamp-param'] ?? 'start', $seconds);
 
         return $media;
     }
