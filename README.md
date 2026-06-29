@@ -17,7 +17,7 @@ Requires PHP 8.2+ and `markup-carve/carve-php`.
 ## Quick Start
 
 ```php
-$converter = new \Carve\CarveConverter();
+$converter = new \MarkupCarve\Carve\CarveConverter();
 $converter->addExtension(new \MarkupCarve\MediaEmbed\MediaEmbedExtension());
 
 echo $converter->convert(':youtube[dQw4w9WgXcQ]');
@@ -176,10 +176,10 @@ A plain `new CarveConverter()` has no restricting safe mode configured, so ifram
 out of the box. If you enable safe mode and still want iframes, explicitly allow raw HTML:
 
 ```php
-use Carve\SafeMode;
+use MarkupCarve\Carve\SafeMode;
 
 $converter->setSafeMode(
-    (new \Carve\SafeMode())->setRawHtmlMode(SafeMode::RAW_HTML_ALLOW)
+    (new \MarkupCarve\Carve\SafeMode())->setRawHtmlMode(SafeMode::RAW_HTML_ALLOW)
 );
 ```
 
