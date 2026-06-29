@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace MarkupCarve\MediaEmbed\Test;
 
-use Carve\CarveConverter;
-use Carve\SafeMode;
+use MarkupCarve\Carve\CarveConverter;
+use MarkupCarve\Carve\SafeMode;
 use MarkupCarve\MediaEmbed\MediaEmbedExtension;
 use PHPUnit\Framework\TestCase;
 

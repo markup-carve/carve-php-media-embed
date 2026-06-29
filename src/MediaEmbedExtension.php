@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace MarkupCarve\MediaEmbed;
 
-use Carve\CarveConverter;
-use Carve\Event\RenderEvent;
-use Carve\Extension\ExtensionInterface;
-use Carve\Node\ContentNodeInterface;
-use Carve\Node\Inline\InlineExtension;
-use Carve\Node\Node;
-use Carve\Renderer\HtmlRenderer;
-use Carve\SafeMode;
+use MarkupCarve\Carve\CarveConverter;
+use MarkupCarve\Carve\Event\RenderEvent;
+use MarkupCarve\Carve\Extension\ExtensionInterface;
+use MarkupCarve\Carve\Node\ContentNodeInterface;
+use MarkupCarve\Carve\Node\Inline\InlineExtension;
+use MarkupCarve\Carve\Node\Node;
+use MarkupCarve\Carve\Renderer\HtmlRenderer;
+use MarkupCarve\Carve\SafeMode;
 use MediaEmbed\MediaEmbed;
 use MediaEmbed\Object\MediaObject;
 
@@ -38,7 +38,7 @@ class MediaEmbedExtension implements ExtensionInterface
     }
 
     /**
-     * @param \Carve\CarveConverter $converter
+     * @param \MarkupCarve\Carve\CarveConverter $converter
      *
      * @return void
      */
@@ -81,7 +81,7 @@ class MediaEmbedExtension implements ExtensionInterface
     }
 
     /**
-     * @param \Carve\Renderer\HtmlRenderer $renderer
+     * @param \MarkupCarve\Carve\Renderer\HtmlRenderer $renderer
      *
      * @return bool
      */
@@ -162,7 +162,7 @@ class MediaEmbedExtension implements ExtensionInterface
     }
 
     /**
-     * @param \Carve\Event\RenderEvent $event
+     * @param \MarkupCarve\Carve\Event\RenderEvent $event
      *
      * @return \MediaEmbed\Object\MediaObject|null
      */
@@ -190,7 +190,7 @@ class MediaEmbedExtension implements ExtensionInterface
      * Used as a fallback when the renderer does not provide a childrenRenderer
      * on the RenderEvent (i.e. non-HTML renderers).
      *
-     * @param \Carve\Node\Node $node
+     * @param \MarkupCarve\Carve\Node\Node $node
      *
      * @return string
      */
@@ -243,7 +243,7 @@ class MediaEmbedExtension implements ExtensionInterface
      * are intentionally NOT passed through.
      *
      * @param \MediaEmbed\Object\MediaObject|null $media
-     * @param \Carve\Node\Inline\InlineExtension $node
+     * @param \MarkupCarve\Carve\Node\Inline\InlineExtension $node
      *
      * @return \MediaEmbed\Object\MediaObject|null
      */
