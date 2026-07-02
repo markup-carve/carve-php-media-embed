@@ -37,6 +37,18 @@ class MediaEmbedExtensionTest extends TestCase
     }
 
     /**
+     * The rendered embed carries the exact Carve source so a WYSIWYG round-trip
+     * can reproduce it verbatim (see the data-carve-source convention).
+     *
+     * @return void
+     */
+    public function testEmbedIsStampedWithCarveSource(): void
+    {
+        $this->assertStringContainsString('data-carve-source=":youtube[dQw4w9WgXcQ]"', $this->convert(':youtube[dQw4w9WgXcQ]'));
+        $this->assertStringContainsString('data-carve-source=":media[https://www.youtube.com/watch?v=dQw4w9WgXcQ]"', $this->convert(':media[https://www.youtube.com/watch?v=dQw4w9WgXcQ]'));
+    }
+
+    /**
      * @return void
      */
     public function testCatchallUrlRendersIframe(): void

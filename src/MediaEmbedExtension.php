@@ -54,12 +54,12 @@ class MediaEmbedExtension implements ExtensionInterface
                 }
 
                 if ($this->mustDegrade($renderer)) {
-                    $event->setHtml($this->linkFallback($media));
+                    $event->setHtml($this->stampSource($this->linkFallback($media), $event));
 
                     return;
                 }
 
-                $event->setHtml($media->getEmbedCode());
+                $event->setHtml($this->stampSource($media->getEmbedCode(), $event));
             });
 
             return;
@@ -182,6 +182,34 @@ class MediaEmbedExtension implements ExtensionInterface
         $media = $this->applyStartOffset($media, $attrs);
 
         return $this->applyIframeAttributes($media, $node);
+    }
+
+    /**
+     * Stamp the rendered embed with the exact Carve source (data-carve-source)
+     * so a WYSIWYG round-trip can reproduce it verbatim - lossless for every
+     * provider, since the rendered iframe URL cannot be reversed reliably.
+     *
+     * @param string $html Rendered embed markup (iframe or link fallback).
+     * @param \MarkupCarve\Carve\Event\RenderEvent $event
+     *
+     * @return string
+     */
+    private function stampSource(string $html, RenderEvent $event): string
+    {
+        $node = $event->getNode();
+        if (!$node instanceof InlineExtension) {
+            return $html;
+        }
+
+        $source = ':' . $node->getExtensionType() . '[' . $this->extractChildText($node) . ']';
+        $stamp = 'data-carve-source="' . htmlspecialchars($source, ENT_QUOTES) . '" ';
+
+        return preg_replace_callback(
+            '/<(iframe|a|span|div)\b/i',
+            fn (array $m): string => '<' . $m[1] . ' ' . $stamp,
+            $html,
+            1,
+        ) ?? $html;
     }
 
     /**
