@@ -1,7 +1,7 @@
 # carve-php-media-embed
 
 A [Carve](https://github.com/markup-carve/carve-php) extension that embeds media players
-(YouTube, Vimeo, Spotify, and [~40 other providers](https://github.com/dereuromark/media-embed/blob/master/docs/supported.md))
+(YouTube, Vimeo, Spotify, and [30+ other providers](https://github.com/dereuromark/media-embed/blob/master/docs/supported.md))
 using concise inline-extension syntax.
 
 Powered by [dereuromark/media-embed](https://github.com/dereuromark/media-embed).
@@ -197,7 +197,7 @@ $converter->setSafeMode(
 ## Supported Providers
 
 See [media-embed's supported providers list](https://github.com/dereuromark/media-embed/blob/master/docs/supported.md)
-for the full list of ~30 available slugs.
+for the full list of 30+ available slugs.
 
 ## License
 
