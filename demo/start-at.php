@@ -15,7 +15,7 @@ declare(strict_types=1);
  * composite forms like `1m30s` are not parsed.
  */
 
-use Carve\CarveConverter;
+use MarkupCarve\Carve\CarveConverter;
 use MarkupCarve\MediaEmbed\MediaEmbedExtension;
 
 require dirname(__DIR__) . '/vendor/autoload.php';

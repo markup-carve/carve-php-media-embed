@@ -10,7 +10,7 @@ declare(strict_types=1);
  * then open http://127.0.0.1:8910/
  */
 
-use Carve\CarveConverter;
+use MarkupCarve\Carve\CarveConverter;
 use MarkupCarve\MediaEmbed\MediaEmbedExtension;
 
 require dirname(__DIR__) . '/vendor/autoload.php';

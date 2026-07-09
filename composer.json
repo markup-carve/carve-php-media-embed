@@ -16,7 +16,7 @@
     },
     "require": {
         "php": ">=8.2",
-        "markup-carve/carve-php": "*",
+        "markup-carve/carve-php": "^0.1.1",
         "dereuromark/media-embed": "^1.0"
     },
     "require-dev": {
