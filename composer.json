@@ -42,7 +42,7 @@
         "cs-check": "phpcs",
         "cs-fix": "phpcbf"
     },
-    "minimum-stability": "dev",
+    "minimum-stability": "stable",
     "prefer-stable": true,
     "config": {
         "allow-plugins": {
