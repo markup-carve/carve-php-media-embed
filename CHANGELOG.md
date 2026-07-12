@@ -1,6 +1,17 @@
 # Changelog
 
-## [Unreleased] - 1.0.0
+## [Unreleased]
+
+## [0.1.1] - 2026-07-12
+
+### Fixed
+
+- Demo scripts fataled against the tagged release: they still imported the
+  pre-rename `Carve\CarveConverter` class; now `MarkupCarve`, and the
+  wildcard carve-php constraint is `^0.1.1`
+- README uses a consistent 30+ provider count
+
+## [0.1.0] - 2026-07-02
 
 ### Added
 - Carve media-embed extension integrating dereuromark/media-embed with markup-carve/carve-php.
