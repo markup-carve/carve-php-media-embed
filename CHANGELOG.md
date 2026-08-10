@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-08-10
+
+### Changed
+
+- Require carve-php `^0.1.4`, the current security and parser/writer
+  convergence release
+- Correct the Composer branch alias for the repository's `main` branch and
+  pre-1.0 release line
+- Move CI to the current checkout action runtime
+
 ## [0.1.1] - 2026-07-12
 
 ### Fixed
