@@ -11,6 +11,13 @@ use MarkupCarve\Carve\Node\ContentNodeInterface;
 use MarkupCarve\Carve\Node\Inline\InlineExtension;
 use MarkupCarve\Carve\Node\Node;
 use MarkupCarve\Carve\Renderer\HtmlRenderer;
+use MarkupCarve\Carve\Renderer\RendererInterface;
+use MarkupCarve\Carve\Renderer\RenderEventsInterface;
+use MarkupCarve\Carve\Renderer\RenderMode;
+use MarkupCarve\Carve\Renderer\RenderModeRendererInterface;
+use MarkupCarve\Carve\Renderer\RenderTarget;
+use MarkupCarve\Carve\Renderer\RenderTargetInterface;
+use MarkupCarve\Carve\Renderer\SafeModeRendererInterface;
 use MarkupCarve\Carve\SafeMode;
 use MediaEmbed\MediaEmbed;
 use MediaEmbed\Object\MediaObject;
@@ -46,8 +53,14 @@ class MediaEmbedExtension implements ExtensionInterface
     {
         $renderer = $converter->getRenderer();
 
-        if ($renderer instanceof HtmlRenderer) {
-            $converter->on('render.inline_extension', function (RenderEvent $event) use ($renderer): void {
+        if (!$renderer instanceof RenderEventsInterface) {
+            // The ANSI and Carve renderers do not dispatch render events, so an
+            // embed cannot be wired into them at all.
+            return;
+        }
+
+        if ($this->isHtmlTarget($renderer)) {
+            $renderer->on('render.inline_extension', function (RenderEvent $event) use ($renderer): void {
                 $media = $this->resolveEvent($event);
                 if ($media === null) {
                     return;
@@ -65,33 +78,49 @@ class MediaEmbedExtension implements ExtensionInterface
             return;
         }
 
-        // Non-HTML renderers (Markdown, PlainText, Carve) expose on() via
-        // EventDispatcherTrait; ANSI renderer may not — check before wiring.
-        if (method_exists($renderer, 'on')) {
-            $renderer->on('render.inline_extension', function (RenderEvent $event): void {
-                $media = $this->resolveEvent($event);
-                if ($media === null) {
-                    return;
-                }
+        $renderer->on('render.inline_extension', function (RenderEvent $event): void {
+            $media = $this->resolveEvent($event);
+            if ($media === null) {
+                return;
+            }
 
-                // Markdown-style link is readable across all plain/markdown targets.
-                $event->setHtml('[' . $media->name() . '](<' . $media->getEmbedSrc() . '>)');
-            });
-        }
+            // Markdown-style link is readable across all plain/markdown targets.
+            $event->setHtml('[' . $media->name() . '](<' . $media->getEmbedSrc() . '>)');
+        });
     }
 
     /**
-     * @param \MarkupCarve\Carve\Renderer\HtmlRenderer $renderer
+     * Whether the renderer writes the HTML target, and so wants an iframe rather than a link.
+     *
+     * carve-php 0.1.11 lets a custom renderer declare its target without extending a built-in
+     * one, so the declared target decides; the HtmlRenderer check only covers a renderer that
+     * predates RenderTargetInterface.
+     *
+     * @param \MarkupCarve\Carve\Renderer\RendererInterface $renderer
      *
      * @return bool
      */
-    protected function mustDegrade(HtmlRenderer $renderer): bool
+    protected function isHtmlTarget(RendererInterface $renderer): bool
     {
-        if ($renderer->isStaticMode()) {
+        if ($renderer instanceof RenderTargetInterface) {
+            return $renderer->getRenderTarget() === RenderTarget::HTML;
+        }
+
+        return $renderer instanceof HtmlRenderer;
+    }
+
+    /**
+     * @param \MarkupCarve\Carve\Renderer\RendererInterface $renderer
+     *
+     * @return bool
+     */
+    protected function mustDegrade(RendererInterface $renderer): bool
+    {
+        if ($this->isStaticMode($renderer)) {
             return true;
         }
 
-        $safeMode = $renderer->getSafeMode();
+        $safeMode = $renderer instanceof SafeModeRendererInterface ? $renderer->getSafeMode() : null;
         if ($safeMode === null) {
             return false;
         }
@@ -101,6 +130,20 @@ class MediaEmbedExtension implements ExtensionInterface
             [SafeMode::RAW_HTML_STRIP, SafeMode::RAW_HTML_ESCAPE],
             true,
         );
+    }
+
+    /**
+     * @param \MarkupCarve\Carve\Renderer\RendererInterface $renderer
+     *
+     * @return bool
+     */
+    protected function isStaticMode(RendererInterface $renderer): bool
+    {
+        if ($renderer instanceof RenderModeRendererInterface) {
+            return $renderer->getRenderMode() === RenderMode::STATIC;
+        }
+
+        return $renderer instanceof HtmlRenderer && $renderer->isStaticMode();
     }
 
     /**
@@ -295,10 +338,16 @@ class MediaEmbedExtension implements ExtensionInterface
             $media = $media->withAttribute('loading', $loading);
         }
 
-        // CSS classes - combines {.class} shorthand and explicit class="..." attribute
-        $classes = $node->getClassList();
-        if ($classes !== []) {
-            $media = $media->withAttribute('class', implode(' ', $classes));
+        // CSS classes - the merged attribute already combines the {.class} shorthand
+        // with an explicit class="..." value, and from carve-php 0.1.11 on the class
+        // LIST may hold an explicit value unsplit, so the attribute is the one to read.
+        $class = ($attrs['class'] ?? '') !== '' ? $attrs['class'] : null;
+        if ($class === null) {
+            $classes = $node->getClassList();
+            $class = $classes === [] ? null : implode(' ', $classes);
+        }
+        if ($class !== null) {
+            $media = $media->withAttribute('class', $class);
         }
 
         return $media;

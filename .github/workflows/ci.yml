@@ -22,6 +22,8 @@ jobs:
           coverage: none
       - run: composer install --prefer-dist --no-progress
       - run: vendor/bin/phpunit
+      # 0.1.1 shipped demos that fataled against the tagged release; no gate saw it.
+      - run: for f in demo/*.php; do php "$f" > /dev/null; done
       - run: vendor/bin/phpstan analyse
         if: matrix.php-version == '8.2'
       - run: vendor/bin/phpcs
