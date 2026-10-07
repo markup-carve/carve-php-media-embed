@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Require carve-php `^0.1.11`. Class attributes now reach the iframe merged: a
+  directive written `{.a class="b c"}` emits `class="a b c"`, where the previous
+  pin dropped the `.a` shorthand
+- A renderer that declares the HTML target without extending `HtmlRenderer` gets
+  an iframe rather than the plain-target link fallback, and safe mode and static
+  mode are read through the renderer capability interfaces
+- The class value is read from the merged `class` attribute rather than assembled
+  from the class list, which may hold an explicit multi-name value unsplit
+
 ## [0.1.3] - 2026-08-18
 
 ### Security
