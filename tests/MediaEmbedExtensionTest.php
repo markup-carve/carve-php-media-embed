@@ -26,6 +26,24 @@ class MediaEmbedExtensionTest extends TestCase
     }
 
     /**
+     * The iframe's src, which is where a start offset either lands or does not.
+     * The whole HTML is the wrong subject: data-carve-source records what the
+     * author wrote, ignored attributes included.
+     *
+     * @param string $html
+     *
+     * @return string
+     */
+    protected function src(string $html): string
+    {
+        if (preg_match('/ src="([^"]*)"/', $html, $matches) !== 1) {
+            $this->fail('no iframe src in ' . $html);
+        }
+
+        return $matches[1];
+    }
+
+    /**
      * @return void
      */
     public function testYoutubeIdRendersIframe(): void
@@ -37,8 +55,8 @@ class MediaEmbedExtensionTest extends TestCase
     }
 
     /**
-     * The rendered embed carries the exact Carve source so a WYSIWYG round-trip
-     * can reproduce it verbatim (see the data-carve-source convention).
+     * The rendered embed carries the Carve source so a WYSIWYG round-trip can
+     * rebuild the directive (see the data-carve-source convention).
      *
      * @return void
      */
@@ -46,6 +64,53 @@ class MediaEmbedExtensionTest extends TestCase
     {
         $this->assertStringContainsString('data-carve-source=":youtube[dQw4w9WgXcQ]"', $this->convert(':youtube[dQw4w9WgXcQ]'));
         $this->assertStringContainsString('data-carve-source=":media[https://www.youtube.com/watch?v=dQw4w9WgXcQ]"', $this->convert(':media[https://www.youtube.com/watch?v=dQw4w9WgXcQ]'));
+    }
+
+    /**
+     * The attribute block reaches the stamp: without it a round-trip restoring
+     * from data-carve-source silently drops the id, the classes, the dimensions
+     * and the start offset.
+     *
+     * @return void
+     */
+    public function testStampKeepsTheDirectiveAttributes(): void
+    {
+        $html = $this->convert(':youtube[dQw4w9WgXcQ]{#vid .frame .two title="Talk" start="90"}');
+        $this->assertStringContainsString(
+            'data-carve-source=":youtube[dQw4w9WgXcQ]{#vid .frame .two title=&quot;Talk&quot; start=&quot;90&quot;}"',
+            $html,
+        );
+        $this->assertStringContainsString(
+            'data-carve-source=":youtube[dQw4w9WgXcQ]{title=&quot;a \\&quot;quoted\\&quot; talk&quot;}"',
+            $this->convert(':youtube[dQw4w9WgXcQ]{title="a \\"quoted\\" talk"}'),
+        );
+    }
+
+    /**
+     * The point of the stamp: rendering it again produces the same embed. This
+     * is the property the attribute block exists for, so it is asserted rather
+     * than described.
+     *
+     * @return void
+     */
+    public function testStampedSourceRendersTheSameEmbed(): void
+    {
+        $sources = [
+            ':youtube[dQw4w9WgXcQ]',
+            ':youtube[dQw4w9WgXcQ]{#vid .frame .two title="Talk" start="90" width="640" height="360" loading="eager"}',
+            ':media[https://www.youtube.com/watch?v=dQw4w9WgXcQ]{.x}',
+        ];
+
+        foreach ($sources as $source) {
+            $html = $this->convert($source);
+            if (preg_match('/data-carve-source="([^"]*)"/', $html, $matches) !== 1) {
+                $this->fail('no stamp in ' . $html);
+            }
+            $stamped = html_entity_decode($matches[1], ENT_QUOTES, 'UTF-8');
+
+            $strip = fn (string $out): string => (string)preg_replace('/ data-carve-source="[^"]*"/', '', $out);
+            $this->assertSame($strip($html), $strip($this->convert($stamped)), $source);
+        }
     }
 
     /**
@@ -67,7 +132,7 @@ class MediaEmbedExtensionTest extends TestCase
         $html = $this->convert(':media[https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=43s]');
         $this->assertStringContainsString('<iframe', $html);
         $this->assertStringContainsString('dQw4w9WgXcQ', $html);
-        $this->assertStringContainsString('start=43', $html);
+        $this->assertStringContainsString('start=43', $this->src($html));
     }
 
     /**
@@ -209,7 +274,7 @@ class MediaEmbedExtensionTest extends TestCase
     {
         $html = $this->convert(':youtube[aqz-KE-bpKQ]{start=90}');
         $this->assertStringContainsString('<iframe', $html);
-        $this->assertStringContainsString('start=90', $html);
+        $this->assertStringContainsString('start=90', $this->src($html));
     }
 
     /**
@@ -219,7 +284,7 @@ class MediaEmbedExtensionTest extends TestCase
     {
         $html = $this->convert(':youtube[aqz-KE-bpKQ]{t=90}');
         $this->assertStringContainsString('<iframe', $html);
-        $this->assertStringContainsString('start=90', $html);
+        $this->assertStringContainsString('start=90', $this->src($html));
     }
 
     /**
@@ -229,8 +294,8 @@ class MediaEmbedExtensionTest extends TestCase
     {
         $html = $this->convert(':youtube[aqz-KE-bpKQ]{start=90s}');
         $this->assertStringContainsString('<iframe', $html);
-        $this->assertStringContainsString('start=90', $html);
-        $this->assertStringNotContainsString('start=90s', $html);
+        $this->assertStringContainsString('start=90', $this->src($html));
+        $this->assertStringNotContainsString('start=90s', $this->src($html));
     }
 
     /**
@@ -240,8 +305,7 @@ class MediaEmbedExtensionTest extends TestCase
     {
         $html = $this->convert(':youtube[aqz-KE-bpKQ]{start=abc}');
         $this->assertStringContainsString('<iframe', $html);
-        $this->assertStringNotContainsString('start=abc', $html);
-        $this->assertStringNotContainsString('start=', $html);
+        $this->assertStringNotContainsString('start=', $this->src($html));
     }
 
     /**
@@ -252,7 +316,7 @@ class MediaEmbedExtensionTest extends TestCase
         // Vimeo does not declare supports-timestamp; start param must not appear.
         $html = $this->convert(':vimeo[123456789]{start=90}');
         $this->assertStringContainsString('<iframe', $html);
-        $this->assertStringNotContainsString('start=90', $html);
+        $this->assertStringNotContainsString('start=90', $this->src($html));
     }
 
     /**
@@ -262,7 +326,7 @@ class MediaEmbedExtensionTest extends TestCase
     {
         $html = $this->convert(':media[https://www.youtube.com/watch?v=aqz-KE-bpKQ]{start=90}');
         $this->assertStringContainsString('<iframe', $html);
-        $this->assertStringContainsString('start=90', $html);
+        $this->assertStringContainsString('start=90', $this->src($html));
     }
 
     /**
@@ -273,8 +337,8 @@ class MediaEmbedExtensionTest extends TestCase
         // URL carries t=43s; directive attribute {start=90} should take precedence.
         $html = $this->convert(':media[https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=43s]{start=90}');
         $this->assertStringContainsString('<iframe', $html);
-        $this->assertStringContainsString('start=90', $html);
-        $this->assertStringNotContainsString('start=43', $html);
+        $this->assertStringContainsString('start=90', $this->src($html));
+        $this->assertStringNotContainsString('start=43', $this->src($html));
     }
 
     /**
@@ -360,7 +424,7 @@ class MediaEmbedExtensionTest extends TestCase
     {
         $html = $this->convert(':youtube[aqz-KE-bpKQ]{start=90 title="x" loading=lazy}');
         $this->assertStringContainsString('<iframe', $html);
-        $this->assertStringContainsString('start=90', $html);
+        $this->assertStringContainsString('start=90', $this->src($html));
         $this->assertStringContainsString('title="x"', $html);
         $this->assertStringContainsString('loading="lazy"', $html);
     }
