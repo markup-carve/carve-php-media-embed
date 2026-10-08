@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- `data-carve-source` records the directive's attribute block, so restoring a
+  directive from the stamp no longer drops its id, classes, dimensions, title,
+  loading hint or start offset. The block is written in canonical order
+  (`#id`, then `.class`, then key-value attributes), because the authored
+  spelling does not reach the renderer: `{.a class="b"}` arrives merged. The
+  stamp re-renders to the same embed rather than being a byte copy of the
+  source
+- The stamp no longer leaves a double space before the next iframe attribute
+
 ## [0.1.4] - 2026-10-08
 
 ### Changed

@@ -228,9 +228,14 @@ class MediaEmbedExtension implements ExtensionInterface
     }
 
     /**
-     * Stamp the rendered embed with the exact Carve source (data-carve-source)
-     * so a WYSIWYG round-trip can reproduce it verbatim - lossless for every
-     * provider, since the rendered iframe URL cannot be reversed reliably.
+     * Stamp the rendered embed with its Carve source (data-carve-source) so a
+     * WYSIWYG round-trip can rebuild the directive: the rendered iframe URL
+     * cannot be reversed reliably.
+     *
+     * The attribute block is written back in canonical order rather than the
+     * authored spelling, which does not survive to the renderer: `{.a class="b"}`
+     * and `{class="a b"}` both arrive merged. So the stamp re-renders to the same
+     * embed, it is not a byte copy of what the author typed.
      *
      * @param string $html Rendered embed markup (iframe or link fallback).
      * @param \MarkupCarve\Carve\Event\RenderEvent $event
@@ -244,8 +249,9 @@ class MediaEmbedExtension implements ExtensionInterface
             return $html;
         }
 
-        $source = ':' . $node->getExtensionType() . '[' . $this->extractChildText($node) . ']';
-        $stamp = 'data-carve-source="' . htmlspecialchars($source, ENT_QUOTES) . '" ';
+        $source = ':' . $node->getExtensionType() . '[' . $this->extractChildText($node) . ']'
+            . $this->attributeBlock($node);
+        $stamp = 'data-carve-source="' . htmlspecialchars($source, ENT_QUOTES, 'UTF-8') . '"';
 
         return preg_replace_callback(
             '/<(iframe|a|span|div)\b/i',
@@ -253,6 +259,42 @@ class MediaEmbedExtension implements ExtensionInterface
             $html,
             1,
         ) ?? $html;
+    }
+
+    /**
+     * Spell the node's merged attributes as a Carve attribute block, or an empty
+     * string when it carries none.
+     *
+     * Order is `#id`, then one `.class` per class in list order, then the
+     * remaining key-value attributes in the order the parser merged them.
+     *
+     * @param \MarkupCarve\Carve\Node\Inline\InlineExtension $node
+     *
+     * @return string
+     */
+    private function attributeBlock(InlineExtension $node): string
+    {
+        $attrs = $node->getAttributes();
+        $parts = [];
+
+        $id = $attrs['id'] ?? '';
+        if ($id !== '') {
+            $parts[] = '#' . $id;
+        }
+
+        foreach (preg_split('/\s+/', (string)($attrs['class'] ?? ''), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $class) {
+            $parts[] = '.' . $class;
+        }
+
+        foreach ($attrs as $name => $value) {
+            if ($name === 'id' || $name === 'class') {
+                continue;
+            }
+            $escaped = str_replace(['\\', '"'], ['\\\\', '\\"'], (string)$value);
+            $parts[] = $name . '="' . $escaped . '"';
+        }
+
+        return $parts === [] ? '' : '{' . implode(' ', $parts) . '}';
     }
 
     /**
