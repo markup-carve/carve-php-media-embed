@@ -205,6 +205,64 @@ class MediaEmbedExtension implements ExtensionInterface
     }
 
     /**
+     * Whether a directive of this name is one this extension renders: the catchall
+     * or a provider slug the MediaEmbed instance knows.
+     *
+     * @param string $type
+     *
+     * @return bool
+     */
+    public function handles(string $type): bool
+    {
+        return $type === $this->config['catchall'] || isset($this->mediaEmbed->getHosts()[$type]);
+    }
+
+    /**
+     * Why a handled directive renders no embed, as `[rule, message]`, or null when it
+     * embeds (or is not a directive this extension handles).
+     *
+     * @param \MarkupCarve\Carve\Node\Inline\InlineExtension $node
+     *
+     * @return array{0: string, 1: string}|null
+     */
+    public function diagnose(InlineExtension $node): ?array
+    {
+        $type = $node->getExtensionType();
+        if (!$this->handles($type)) {
+            return null;
+        }
+
+        $content = trim($this->extractChildText($node));
+        if ($content === '') {
+            return [MediaEmbedLinter::RULE_UNRESOLVED, sprintf('":%s[]" names no media, so nothing is embedded.', $type)];
+        }
+        if ($this->resolve($type, $content) !== null) {
+            return null;
+        }
+
+        $providers = $this->config['providers'];
+        $isUrl = preg_match('/^https?:\/\//i', $content) === 1;
+        $media = $isUrl ? $this->mediaEmbed->parseUrl($content) : null;
+
+        if ($type === $this->config['catchall']) {
+            if ($media === null) {
+                return [MediaEmbedLinter::RULE_UNRESOLVED, sprintf('No provider recognizes "%s", so nothing is embedded.', $content)];
+            }
+
+            return [MediaEmbedLinter::RULE_PROVIDER_NOT_ALLOWED, sprintf('"%s" resolves to provider "%s", which the providers list does not allow.', $content, $media->slug())];
+        }
+
+        if (is_array($providers) && !in_array($type, $providers, true)) {
+            return [MediaEmbedLinter::RULE_PROVIDER_NOT_ALLOWED, sprintf('Provider "%s" is not in the providers list, so nothing is embedded.', $type)];
+        }
+        if ($isUrl && $media !== null) {
+            return [MediaEmbedLinter::RULE_UNRESOLVED, sprintf('"%s" is a %s URL, not a %s one, so nothing is embedded.', $content, $media->slug(), $type)];
+        }
+
+        return [MediaEmbedLinter::RULE_UNRESOLVED, sprintf('"%s" is not a %s URL or id, so nothing is embedded.', $content, $type)];
+    }
+
+    /**
      * @param \MarkupCarve\Carve\Event\RenderEvent $event
      *
      * @return \MediaEmbed\Object\MediaObject|null
