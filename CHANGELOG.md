@@ -1,6 +1,20 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.6] - 2026-10-23
+
+### Added
+
+- `MediaEmbedLinter` reports media directives that render no embed:
+  `media-embed-unresolved` for an unrecognized or mismatched URL or empty content,
+  `media-embed-provider-not-allowed` for a provider outside the `providers` list.
+  Merge its warnings with carve-php's `DocumentLinter`
+- `MediaEmbedExtension::handles()` and `diagnose()` expose the same check per node
+
+### Changed
+
+- Require carve-php `^0.1.14`
+
+## [0.1.5] - 2026-10-08
 
 ### Fixed
 

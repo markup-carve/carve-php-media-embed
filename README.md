@@ -12,7 +12,7 @@ Powered by [dereuromark/media-embed](https://github.com/dereuromark/media-embed)
 composer require markup-carve/carve-php-media-embed
 ```
 
-Requires PHP 8.2+ and `markup-carve/carve-php`.
+Requires PHP 8.2+ and `markup-carve/carve-php` 0.1.14 or later.
 
 ## Quick Start
 
@@ -183,13 +183,44 @@ $converter->setSafeMode(
 );
 ```
 
+## Linting
+
+A directive that resolves to no embed renders nothing, so a typo in a URL goes
+unnoticed. `MediaEmbedLinter` reports those directives. carve-php's
+`DocumentLinter` has no extension hook, so merge the two results:
+
+```php
+use MarkupCarve\Carve\Lint\DocumentLinter;
+use MarkupCarve\MediaEmbed\MediaEmbedExtension;
+use MarkupCarve\MediaEmbed\MediaEmbedLinter;
+
+$extension = new MediaEmbedExtension(null, ['providers' => ['youtube', 'vimeo']]);
+
+$warnings = array_merge(
+    (new DocumentLinter())->lint($source, ['extensions' => [$extension]]),
+    (new MediaEmbedLinter($extension))->lint($source),
+);
+```
+
+Pass the same configured extension you render with, so the linter applies the same
+catchall name, provider allowlist and `MediaEmbed` instance. Warnings are
+`MarkupCarve\Carve\Lint\LintWarning` objects with the usual line, column and byte
+offsets.
+
+| Rule | Reported when |
+|---|---|
+| `media-embed-unresolved` | The directive is the catchall or a known provider, but no provider recognizes the URL, the URL belongs to a different provider, or the content is empty. |
+| `media-embed-provider-not-allowed` | The provider is known but missing from the `providers` allowlist. |
+
+Directives of other extensions (`:kbd[...]` and similar) are not reported.
+
 ## Security
 
 - Provider URLs come from media-embed's trusted provider templates, not from raw author input.
 - The author-supplied value is only a media ID or full URL, both validated by media-embed
   before any embed code is produced.
 - Unknown provider slugs and unresolvable URLs silently produce no output (the directive is
-  left unhandled).
+  left unhandled). `MediaEmbedLinter` reports them; see [Linting](#linting).
 - The `start`/`t` directive attributes are validated as non-negative integers before being
   appended as query parameters to the provider URL. Non-numeric values are silently ignored.
 - Degraded links are sanitized with `htmlspecialchars` and carry `rel="noopener noreferrer"`.
