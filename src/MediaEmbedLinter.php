@@ -132,16 +132,24 @@ class MediaEmbedLinter
             $scopes[$line] = [$all, $scoped];
         }
 
-        return array_values(array_filter($warnings, static function (LintWarning $warning) use ($lineRules, $scopes): bool {
+        $scopeLines = array_keys($scopes);
+
+        return array_values(array_filter($warnings, static function (LintWarning $warning) use ($lineRules, $scopes, $scopeLines): bool {
             if (isset($lineRules[$warning->line]['*']) || isset($lineRules[$warning->line][$warning->rule])) {
                 return false;
             }
+            // Last scope line at or above the warning, by binary search.
+            $low = 0;
+            $high = count($scopeLines) - 1;
             $current = [false, []];
-            foreach ($scopes as $line => $scope) {
-                if ($line > $warning->line) {
-                    break;
+            while ($low <= $high) {
+                $mid = intdiv($low + $high, 2);
+                if ($scopeLines[$mid] <= $warning->line) {
+                    $current = $scopes[$scopeLines[$mid]];
+                    $low = $mid + 1;
+                } else {
+                    $high = $mid - 1;
                 }
-                $current = $scope;
             }
 
             return !($current[1][$warning->rule] ?? $current[0]);
