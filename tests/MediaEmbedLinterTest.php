@@ -68,6 +68,52 @@ class MediaEmbedLinterTest extends TestCase
     }
 
     /**
+     * Suppression comments as specified for authoring lint: the warning's line decides.
+     *
+     * @return array<string, array{0: string, 1: array<int>}>
+     */
+    public static function suppressionCases(): array
+    {
+        $bad = ':media[https://example.com/clip]';
+
+        return [
+            'next-line with the rule id' => ["%% carve-lint-disable-next-line media-embed-unresolved\n$bad\n\n$bad\n", [4]],
+            'next-line without ids silences every rule' => ["%% carve-lint-disable-next-line\n$bad\n", []],
+            'next-line naming another rule' => ["%% carve-lint-disable-next-line media-embed-provider-not-allowed\n$bad\n", [2]],
+            'comma and space separated ids' => ["%% carve-lint-disable-next-line foo,media-embed-unresolved bar\n$bad\n", []],
+            'next-line reaches into a list item' => ["%% carve-lint-disable-next-line\n- item $bad\n", []],
+            'trailing comment disables its own line' => ["$bad %% carve-lint-disable-line media-embed-unresolved\n\n$bad\n", [3]],
+            'document scope until enable' => [
+                "%% carve-lint-disable media-embed-unresolved\n\n$bad\n\n%% carve-lint-enable media-embed-unresolved\n\n$bad\n",
+                [7],
+            ],
+            'enable without ids ends a disable without ids' => ["%% carve-lint-disable\n\n$bad\n\n%% carve-lint-enable\n\n$bad\n", [7]],
+            'later enable keeps a next-line suppression' => [
+                "%% carve-lint-disable\n%% carve-lint-disable-next-line\n$bad %% carve-lint-enable\n",
+                [],
+            ],
+            'directive in code is inert' => ["```\n%% carve-lint-disable\n```\n\n$bad\n", [5]],
+            'fenced comment body is inert' => ["%%%\ncarve-lint-disable\n%%%\n\n$bad\n", [5]],
+            'braced comment is inert' => ["{% carve-lint-disable %}\n\n$bad\n", [3]],
+            'no space after the opener is inert' => ["%%carve-lint-disable\n\n$bad\n", [3]],
+        ];
+    }
+
+    /**
+     * @param string $source
+     * @param array<int> $lines
+     *
+     * @return void
+     */
+    #[DataProvider('suppressionCases')]
+    public function testSuppressionComments(string $source, array $lines): void
+    {
+        $warnings = (new MediaEmbedLinter())->lint($source);
+
+        $this->assertSame($lines, array_map(static fn (LintWarning $w): int => $w->line, $warnings));
+    }
+
+    /**
      * Positions follow carve-php's lint units: codepoint columns, byte offsets.
      *
      * @return void

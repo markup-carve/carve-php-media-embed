@@ -214,6 +214,23 @@ offsets.
 
 Directives of other extensions (`:kbd[...]` and similar) are not reported.
 
+`DocumentLinter` drops its own findings under `carve-lint-*` suppression comments,
+but not the warnings you merge in afterwards. `MediaEmbedLinter` reads the same
+comments, so one comment silences both:
+
+```text
+%% carve-lint-disable-next-line media-embed-unresolved
+:media[https://example.com/private-clip]
+
+:media[https://example.com/clip] %% carve-lint-disable-line
+
+%% carve-lint-disable media-embed-provider-not-allowed
+```
+
+`disable-line` covers its own line, `disable-next-line` the line after it, and
+`disable` runs until a matching `carve-lint-enable`. Without rule ids a comment
+covers every rule; separate several ids with commas or spaces.
+
 ## Security
 
 - Provider URLs come from media-embed's trusted provider templates, not from raw author input.
