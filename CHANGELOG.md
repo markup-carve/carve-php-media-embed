@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.7] - Unreleased
+
+### Fixed
+
+- `MediaEmbedLinter` honors carve-lint suppression comments
+  (`carve-lint-disable`, `carve-lint-enable`, `carve-lint-disable-line`,
+  `carve-lint-disable-next-line`) with the same scoping as carve-php's
+  `DocumentLinter`, so a comment naming `media-embed-unresolved` or
+  `media-embed-provider-not-allowed` now silences it (#20)
+
 ## [0.1.6] - 2026-10-23
 
 ### Added
