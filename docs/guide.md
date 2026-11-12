@@ -12,7 +12,7 @@ Powered by [dereuromark/media-embed](https://github.com/dereuromark/media-embed)
 composer require markup-carve/carve-php-media-embed
 ```
 
-Requires PHP 8.2+ and `markup-carve/carve-php` 0.1.14 or later.
+Requires PHP 8.2+ and `markup-carve/carve-php` 0.1.17 or later.
 
 ## Quick Start
 
