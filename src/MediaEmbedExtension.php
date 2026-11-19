@@ -4,26 +4,40 @@ declare(strict_types=1);
 
 namespace MarkupCarve\MediaEmbed;
 
-use MarkupCarve\Carve\CarveConverter;
-use MarkupCarve\Carve\Event\RenderEvent;
-use MarkupCarve\Carve\Extension\ExtensionInterface;
-use MarkupCarve\Carve\Node\ContentNodeInterface;
-use MarkupCarve\Carve\Node\Inline\InlineExtension;
-use MarkupCarve\Carve\Node\Node;
-use MarkupCarve\Carve\Renderer\HtmlRenderer;
-use MarkupCarve\Carve\Renderer\RendererInterface;
-use MarkupCarve\Carve\Renderer\RenderEventsInterface;
-use MarkupCarve\Carve\Renderer\RenderMode;
-use MarkupCarve\Carve\Renderer\RenderModeRendererInterface;
-use MarkupCarve\Carve\Renderer\RenderTarget;
-use MarkupCarve\Carve\Renderer\RenderTargetInterface;
-use MarkupCarve\Carve\Renderer\SafeModeRendererInterface;
-use MarkupCarve\Carve\SafeMode;
+use MarkupCarve\Carve\Attrs;
+use MarkupCarve\Carve\Extension\Claim;
+use MarkupCarve\Carve\Extension\ExtensionDefinition;
+use MarkupCarve\Carve\Extension\ExtensionProvider;
+use MarkupCarve\Carve\Extension\RenderHost;
+use MarkupCarve\Carve\Node;
 use MediaEmbed\MediaEmbed;
 use MediaEmbed\Object\MediaObject;
 
-class MediaEmbedExtension implements ExtensionInterface
+/**
+ * Claims `:<provider>[...]` and the catchall `:media[...]` inline extensions (C2-X-006) and renders them as embeds.
+ * Pass an instance in the `extensions` option of `Carve::render()` (and of `parse`, `format`, `write`).
+ */
+class MediaEmbedExtension implements ExtensionProvider
 {
+    /**
+     * Qualified-name prefix of the extension nodes this package creates (C2-X-001).
+     *
+     * @var string
+     */
+    public const NAME_PREFIX = 'media-embed.';
+
+    /**
+     * @var string
+     */
+    public const VERSION = '1';
+
+    /**
+     * Profiles for untrusted content: an embed degrades to a plain link there, as 0.1 safe mode did.
+     *
+     * @var array<string>
+     */
+    public const LINK_ONLY_PROFILES = ['comment', 'minimal'];
+
     protected MediaEmbed $mediaEmbed;
 
     /**
@@ -41,109 +55,106 @@ class MediaEmbedExtension implements ExtensionInterface
         $this->config = $config + [
             'catchall' => 'media',
             'providers' => null,
+            'linkOnly' => false,
         ];
     }
 
     /**
-     * @param \MarkupCarve\Carve\CarveConverter $converter
+     * One definition per directive name: the catchall and every provider slug MediaEmbed knows.
      *
-     * @return void
+     * @return array<\MarkupCarve\Carve\Extension\ExtensionDefinition>
      */
-    public function register(CarveConverter $converter): void
+    public function definitions(): array
     {
-        $renderer = $converter->getRenderer();
-
-        if (!$renderer instanceof RenderEventsInterface) {
-            // The ANSI and Carve renderers do not dispatch render events, so an
-            // embed cannot be wired into them at all.
-            return;
+        $names = array_unique(array_merge([(string)$this->config['catchall']], array_map('strval', array_keys($this->mediaEmbed->getHosts()))));
+        $definitions = [];
+        foreach ($names as $name) {
+            $definitions[] = new ExtensionDefinition(
+                self::NAME_PREFIX . $name,
+                self::VERSION,
+                [],
+                matcher: ['form' => 'inline', 'name' => $name],
+                transform: fn (Claim $claim): ?Node => $this->claim($claim),
+                renderer: fn (Node $node, RenderHost $host): string => $this->renderEmbed($node, $host),
+                buildTimeRenderer: fn (Node $node, RenderHost $host): string => $this->renderLink($node),
+            );
         }
 
-        if ($this->isHtmlTarget($renderer)) {
-            $renderer->on('render.inline_extension', function (RenderEvent $event) use ($renderer): void {
-                $media = $this->resolveEvent($event);
-                if ($media === null) {
-                    return;
-                }
-
-                if ($this->mustDegrade($renderer)) {
-                    $event->setHtml($this->stampSource($this->linkFallback($media), $event));
-
-                    return;
-                }
-
-                $event->setHtml($this->stampSource($media->getEmbedCode(), $event));
-            });
-
-            return;
-        }
-
-        $renderer->on('render.inline_extension', function (RenderEvent $event): void {
-            $media = $this->resolveEvent($event);
-            if ($media === null) {
-                return;
-            }
-
-            // Markdown-style link is readable across all plain/markdown targets.
-            $event->setHtml('[' . $media->name() . '](<' . $media->getEmbedSrc() . '>)');
-        });
+        return $definitions;
     }
 
     /**
-     * Whether the renderer writes the HTML target, and so wants an iframe rather than a link.
+     * Turn a resolvable directive into an extension node; an unresolvable one stays the core node (the transform returns null),
+     * which the engine renders as its unclaimed-extension span.
      *
-     * carve-php 0.1.11 lets a custom renderer declare its target without extending a built-in
-     * one, so the declared target decides; the HtmlRenderer check only covers a renderer that
-     * predates RenderTargetInterface.
+     * @param \MarkupCarve\Carve\Extension\Claim $claim
      *
-     * @param \MarkupCarve\Carve\Renderer\RendererInterface $renderer
-     *
-     * @return bool
+     * @return \MarkupCarve\Carve\Node|null
      */
-    protected function isHtmlTarget(RendererInterface $renderer): bool
+    protected function claim(Claim $claim): ?Node
     {
-        if ($renderer instanceof RenderTargetInterface) {
-            return $renderer->getRenderTarget() === RenderTarget::HTML;
+        $content = $this->extractChildText($claim->node);
+        if ($this->resolveNode($claim->name, $content, self::attrs($claim->node)) === null) {
+            return null;
         }
 
-        return $renderer instanceof HtmlRenderer;
+        $node = new Node('inline_extension', []);
+        $node->f = [
+            'name' => self::NAME_PREFIX . $claim->name,
+            'version' => self::VERSION,
+            'props' => ['type' => $claim->name, 'content' => $content],
+            'fallback' => [$claim->copyNode()],
+        ];
+
+        return $node;
     }
 
     /**
-     * @param \MarkupCarve\Carve\Renderer\RendererInterface $renderer
+     * @param \MarkupCarve\Carve\Node $node
+     * @param \MarkupCarve\Carve\Extension\RenderHost $host
      *
-     * @return bool
+     * @return string
      */
-    protected function mustDegrade(RendererInterface $renderer): bool
+    protected function renderEmbed(Node $node, RenderHost $host): string
     {
-        if ($this->isStaticMode($renderer)) {
-            return true;
+        if ($this->config['linkOnly'] || in_array($host->profile, self::LINK_ONLY_PROFILES, true)) {
+            return $this->renderLink($node);
+        }
+        $media = $this->mediaFor($node);
+        if ($media === null) {
+            return '';
         }
 
-        $safeMode = $renderer instanceof SafeModeRendererInterface ? $renderer->getSafeMode() : null;
-        if ($safeMode === null) {
-            return false;
-        }
-
-        return in_array(
-            $safeMode->getRawHtmlMode(),
-            [SafeMode::RAW_HTML_STRIP, SafeMode::RAW_HTML_ESCAPE],
-            true,
-        );
+        return $this->stampSource($media->getEmbedCode(), $node);
     }
 
     /**
-     * @param \MarkupCarve\Carve\Renderer\RendererInterface $renderer
+     * The link an embed degrades to: in static mode (C2-X-052), a link-only profile, or with `linkOnly`.
      *
-     * @return bool
+     * @param \MarkupCarve\Carve\Node $node
+     *
+     * @return string
      */
-    protected function isStaticMode(RendererInterface $renderer): bool
+    protected function renderLink(Node $node): string
     {
-        if ($renderer instanceof RenderModeRendererInterface) {
-            return $renderer->getRenderMode() === RenderMode::STATIC;
+        $media = $this->mediaFor($node);
+        if ($media === null) {
+            return '';
         }
 
-        return $renderer instanceof HtmlRenderer && $renderer->isStaticMode();
+        return $this->stampSource($this->linkFallback($media), $node);
+    }
+
+    /**
+     * @param \MarkupCarve\Carve\Node $node
+     *
+     * @return \MediaEmbed\Object\MediaObject|null
+     */
+    protected function mediaFor(Node $node): ?MediaObject
+    {
+        $props = is_array($node->f['props'] ?? null) ? $node->f['props'] : [];
+
+        return $this->resolveNode((string)($props['type'] ?? ''), (string)($props['content'] ?? ''), self::attrs($node));
     }
 
     /**
@@ -221,13 +232,16 @@ class MediaEmbedExtension implements ExtensionInterface
      * Why a handled directive renders no embed, as `[rule, message]`, or null when it
      * embeds (or is not a directive this extension handles).
      *
-     * @param \MarkupCarve\Carve\Node\Inline\InlineExtension $node
+     * @param \MarkupCarve\Carve\Node $node A core `inline_extension` node.
      *
      * @return array{0: string, 1: string}|null
      */
-    public function diagnose(InlineExtension $node): ?array
+    public function diagnose(Node $node): ?array
     {
-        $type = $node->getExtensionType();
+        if ($node->type !== 'inline_extension') {
+            return null;
+        }
+        $type = (string)($node->f['name'] ?? '');
         if (!$this->handles($type)) {
             return null;
         }
@@ -263,26 +277,33 @@ class MediaEmbedExtension implements ExtensionInterface
     }
 
     /**
-     * @param \MarkupCarve\Carve\Event\RenderEvent $event
+     * @param string $type
+     * @param string $content
+     * @param \MarkupCarve\Carve\Attrs|null $attrs
      *
      * @return \MediaEmbed\Object\MediaObject|null
      */
-    private function resolveEvent(RenderEvent $event): ?MediaObject
+    private function resolveNode(string $type, string $content, ?Attrs $attrs): ?MediaObject
     {
-        $node = $event->getNode();
-        if (!$node instanceof InlineExtension) {
-            return null;
-        }
+        $width = $this->parsePositiveInt($attrs?->get('width'));
+        $height = $this->parsePositiveInt($attrs?->get('height'));
 
-        $attrs = $node->getAttributes();
-        $width = $this->parsePositiveInt($attrs['width'] ?? null);
-        $height = $this->parsePositiveInt($attrs['height'] ?? null);
-
-        $content = $this->extractChildText($node);
-        $media = $this->resolve($node->getExtensionType(), $content, $width, $height);
+        $media = $this->resolve($type, $content, $width, $height);
         $media = $this->applyStartOffset($media, $attrs);
 
-        return $this->applyIframeAttributes($media, $node);
+        return $this->applyIframeAttributes($media, $attrs);
+    }
+
+    /**
+     * @param \MarkupCarve\Carve\Node $node
+     *
+     * @return \MarkupCarve\Carve\Attrs|null
+     */
+    private static function attrs(Node $node): ?Attrs
+    {
+        $attrs = $node->f['attrs'] ?? null;
+
+        return $attrs instanceof Attrs ? $attrs : null;
     }
 
     /**
@@ -296,19 +317,15 @@ class MediaEmbedExtension implements ExtensionInterface
      * embed, it is not a byte copy of what the author typed.
      *
      * @param string $html Rendered embed markup (iframe or link fallback).
-     * @param \MarkupCarve\Carve\Event\RenderEvent $event
+     * @param \MarkupCarve\Carve\Node $node The extension node.
      *
      * @return string
      */
-    private function stampSource(string $html, RenderEvent $event): string
+    private function stampSource(string $html, Node $node): string
     {
-        $node = $event->getNode();
-        if (!$node instanceof InlineExtension) {
-            return $html;
-        }
-
-        $source = ':' . $node->getExtensionType() . '[' . $this->extractChildText($node) . ']'
-            . $this->attributeBlock($node);
+        $props = is_array($node->f['props'] ?? null) ? $node->f['props'] : [];
+        $source = ':' . ($props['type'] ?? '') . '[' . ($props['content'] ?? '') . ']'
+            . $this->attributeBlock(self::attrs($node));
         $stamp = 'data-carve-source="' . htmlspecialchars($source, ENT_QUOTES, 'UTF-8') . '"';
 
         return preg_replace_callback(
@@ -326,29 +343,27 @@ class MediaEmbedExtension implements ExtensionInterface
      * Order is `#id`, then one `.class` per class in list order, then the
      * remaining key-value attributes in the order the parser merged them.
      *
-     * @param \MarkupCarve\Carve\Node\Inline\InlineExtension $node
+     * @param \MarkupCarve\Carve\Attrs|null $attrs
      *
      * @return string
      */
-    private function attributeBlock(InlineExtension $node): string
+    private function attributeBlock(?Attrs $attrs): string
     {
-        $attrs = $node->getAttributes();
+        if ($attrs === null) {
+            return '';
+        }
         $parts = [];
 
-        $id = $attrs['id'] ?? '';
-        if ($id !== '') {
-            $parts[] = '#' . $id;
+        if (($attrs->id ?? '') !== '') {
+            $parts[] = '#' . $attrs->id;
         }
 
-        foreach (preg_split('/\s+/', (string)($attrs['class'] ?? ''), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $class) {
+        foreach ($attrs->classes as $class) {
             $parts[] = '.' . $class;
         }
 
-        foreach ($attrs as $name => $value) {
-            if ($name === 'id' || $name === 'class') {
-                continue;
-            }
-            $escaped = str_replace(['\\', '"'], ['\\\\', '\\"'], (string)$value);
+        foreach ($attrs->pairs as [$name, $value]) {
+            $escaped = str_replace(['\\', '"'], ['\\\\', '\\"'], $value);
             $parts[] = $name . '="' . $escaped . '"';
         }
 
@@ -356,24 +371,19 @@ class MediaEmbedExtension implements ExtensionInterface
     }
 
     /**
-     * Recursively collect plain text from a node's children.
+     * Recursively collect the plain text of a node's children.
      *
-     * Used as a fallback when the renderer does not provide a childrenRenderer
-     * on the RenderEvent (i.e. non-HTML renderers).
-     *
-     * @param \MarkupCarve\Carve\Node\Node $node
+     * @param \MarkupCarve\Carve\Node $node
      *
      * @return string
      */
     private function extractChildText(Node $node): string
     {
         $text = '';
-        foreach ($node->getChildren() as $child) {
-            if ($child instanceof ContentNodeInterface) {
-                $text .= $child->getContent();
-            } else {
-                $text .= $this->extractChildText($child);
-            }
+        foreach ($node->children ?? [] as $child) {
+            // Smart punctuation keeps its source spelling: an id or URL means the typed bytes.
+            $value = $child->type === 'smart_punctuation' ? ($child->f['source'] ?? null) : ($child->f['value'] ?? null);
+            $text .= is_string($value) ? $value : $this->extractChildText($child);
         }
 
         return $text;
@@ -414,38 +424,30 @@ class MediaEmbedExtension implements ExtensionInterface
      * are intentionally NOT passed through.
      *
      * @param \MediaEmbed\Object\MediaObject|null $media
-     * @param \MarkupCarve\Carve\Node\Inline\InlineExtension $node
+     * @param \MarkupCarve\Carve\Attrs|null $attrs
      *
      * @return \MediaEmbed\Object\MediaObject|null
      */
-    private function applyIframeAttributes(?MediaObject $media, InlineExtension $node): ?MediaObject
+    private function applyIframeAttributes(?MediaObject $media, ?Attrs $attrs): ?MediaObject
     {
-        if ($media === null) {
-            return null;
+        if ($media === null || $attrs === null) {
+            return $media;
         }
 
-        $attrs = $node->getAttributes();
-
         // title - accessibility label for the iframe
-        $title = $attrs['title'] ?? null;
+        $title = $attrs->get('title');
         if ($title !== null && $title !== '') {
             $media = $media->withAttribute('title', $title);
         }
 
         // loading - lazy/eager only; any other value is silently ignored
-        $loading = $attrs['loading'] ?? null;
+        $loading = $attrs->get('loading');
         if ($loading === 'lazy' || $loading === 'eager') {
             $media = $media->withAttribute('loading', $loading);
         }
 
-        // CSS classes - the merged attribute already combines the {.class} shorthand
-        // with an explicit class="..." value, and from carve-php 0.1.11 on the class
-        // LIST may hold an explicit value unsplit, so the attribute is the one to read.
-        $class = ($attrs['class'] ?? '') !== '' ? $attrs['class'] : null;
-        if ($class === null) {
-            $classes = $node->getClassList();
-            $class = $classes === [] ? null : implode(' ', $classes);
-        }
+        // CSS classes: 0.2 merges the `.class` shorthand and `class="..."` into one list (C2-A-035).
+        $class = $attrs->classes === [] ? null : implode(' ', $attrs->classes);
         if ($class !== null) {
             $media = $media->withAttribute('class', $class);
         }
@@ -481,18 +483,18 @@ class MediaEmbedExtension implements ExtensionInterface
      * wins because it is applied after the MediaObject is constructed.
      *
      * @param \MediaEmbed\Object\MediaObject|null $media
-     * @param array<string, string> $nodeAttributes
+     * @param \MarkupCarve\Carve\Attrs|null $attrs
      *
      * @return \MediaEmbed\Object\MediaObject|null
      */
-    private function applyStartOffset(?MediaObject $media, array $nodeAttributes): ?MediaObject
+    private function applyStartOffset(?MediaObject $media, ?Attrs $attrs): ?MediaObject
     {
-        if ($media === null) {
-            return null;
+        if ($media === null || $attrs === null) {
+            return $media;
         }
 
         // Prefer 'start'; fall back to 't' (YouTube-style alias).
-        $raw = $nodeAttributes['start'] ?? $nodeAttributes['t'] ?? null;
+        $raw = $attrs->get('start') ?? $attrs->get('t');
         if ($raw === null) {
             return $media;
         }
