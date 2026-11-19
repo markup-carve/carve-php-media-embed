@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace MarkupCarve\MediaEmbed\Test;
 
-use MarkupCarve\Carve\CarveConverter;
-use MarkupCarve\Carve\Lint\LintWarning;
+use MarkupCarve\Carve\Carve;
+use MarkupCarve\Carve\Diagnostics\Diagnostic;
 use MarkupCarve\MediaEmbed\MediaEmbedExtension;
 use MarkupCarve\MediaEmbed\MediaEmbedLinter;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -23,7 +23,7 @@ class MediaEmbedLinterTest extends TestCase
     {
         $linter = new MediaEmbedLinter(new MediaEmbedExtension(null, $config));
 
-        return array_map(static fn (LintWarning $w): string => $w->rule, $linter->lint($source));
+        return array_map(static fn (Diagnostic $w): string => $w->code, $linter->lint($source));
     }
 
     /**
@@ -110,23 +110,27 @@ class MediaEmbedLinterTest extends TestCase
     {
         $warnings = (new MediaEmbedLinter())->lint($source);
 
-        $this->assertSame($lines, array_map(static fn (LintWarning $w): int => $w->line, $warnings));
+        // A 0.2 diagnostic carries a byte range, not a line (C2-A-173), so the line is derived from it.
+        $this->assertSame($lines, array_map(static fn (Diagnostic $w): int => MediaEmbedLinter::lineOf($source, $w->startOffset), $warnings));
     }
 
     /**
-     * Positions follow carve-php's lint units: codepoint columns, byte offsets.
+     * A 0.2 diagnostic is on channel `lint` with a UTF-8 byte range and an RFC 6901 path (C2-A-173); the 0.1 line
+     * and codepoint column fields are gone, so the line is derived and the column is not asserted.
      *
      * @return void
      */
-    public function testPositionUsesLineColumnAndByteOffsets(): void
+    public function testPositionUsesByteOffsetsAndPath(): void
     {
         $source = "Intro\n\nä :media[https://example.com/clip]\n";
         $warnings = (new MediaEmbedLinter())->lint($source);
 
         $this->assertCount(1, $warnings);
-        $this->assertSame(3, $warnings[0]->line);
-        $this->assertSame(3, $warnings[0]->column);
-        $this->assertSame(':media[https://example.com/clip]', substr($source, $warnings[0]->start, $warnings[0]->end - $warnings[0]->start));
+        $this->assertSame(3, MediaEmbedLinter::lineOf($source, $warnings[0]->startOffset));
+        $this->assertSame('lint', $warnings[0]->channel);
+        $this->assertSame('warning', $warnings[0]->severity);
+        $this->assertSame('/children/1/children/1', $warnings[0]->path);
+        $this->assertSame(':media[https://example.com/clip]', substr($source, $warnings[0]->startOffset, $warnings[0]->endOffset - $warnings[0]->startOffset));
         $this->assertStringContainsString('https://example.com/clip', $warnings[0]->message);
     }
 
@@ -137,11 +141,8 @@ class MediaEmbedLinterTest extends TestCase
      */
     public function testAgreesWithTheRenderer(): void
     {
-        $converter = new CarveConverter();
-        $converter->addExtension(new MediaEmbedExtension());
-
         foreach ([':youtube[dQw4w9WgXcQ]', ':media[https://example.com/clip]', ':vimeo[https://youtu.be/dQw4w9WgXcQ]'] as $source) {
-            $embeds = str_contains($converter->convert($source), '<iframe');
+            $embeds = str_contains(Carve::render($source, ['extensions' => [new MediaEmbedExtension()]]), '<iframe');
             $this->assertSame($embeds, (new MediaEmbedLinter())->lint($source) === [], $source);
         }
     }

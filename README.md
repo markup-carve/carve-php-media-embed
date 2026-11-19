@@ -1,6 +1,6 @@
 # carve-php-media-embed
 
-Media embed extension for `markup-carve/carve-php` 0.1.17 or later. It resolves provider directives through `dereuromark/media-embed`. See the [Carve documentation](https://markup-carve.github.io/carve/).
+Media embed extension for `markup-carve/carve-php` 0.2 (the `next2` branch; unreleased). It resolves provider directives through `dereuromark/media-embed`. See the [Carve documentation](https://markup-carve.github.io/carve/).
 
 ## Install
 
@@ -11,9 +11,10 @@ composer require markup-carve/carve-php-media-embed
 ## Usage
 
 ```php
-$converter = new \MarkupCarve\Carve\CarveConverter();
-$converter->addExtension(new \MarkupCarve\MediaEmbed\MediaEmbedExtension());
-echo $converter->convert(":youtube[dQw4w9WgXcQ]");
+use MarkupCarve\Carve\Carve;
+use MarkupCarve\MediaEmbed\MediaEmbedExtension;
+
+echo Carve::render(':youtube[dQw4w9WgXcQ]', ['extensions' => [new MediaEmbedExtension()]]);
 ```
 
 ## Documentation
