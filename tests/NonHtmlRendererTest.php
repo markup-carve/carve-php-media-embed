@@ -40,11 +40,11 @@ class NonHtmlRendererTest extends TestCase
     /**
      * @return void
      */
-    public function testMarkdownTargetUsesExtensionFallbackText(): void
+    public function testMarkdownTargetUsesExtensionLinkFallback(): void
     {
         $out = $this->write('markdown', ':youtube[dQw4w9WgXcQ]');
 
-        $this->assertSame("dQw4w9WgXcQ\n", $out);
+        $this->assertSame("[//www.youtube.com/embed/dQw4w9WgXcQ?wmode=transparent](//www.youtube.com/embed/dQw4w9WgXcQ?wmode=transparent)\n", $out);
     }
 
     /**
@@ -69,5 +69,6 @@ class NonHtmlRendererTest extends TestCase
 
         $this->assertStringContainsString('dQw4w9WgXcQ', $out);
         $this->assertStringNotContainsString('<iframe', $out);
+        $this->assertSame("//www.youtube.com/embed/dQw4w9WgXcQ?wmode=transparent\n", $out);
     }
 }

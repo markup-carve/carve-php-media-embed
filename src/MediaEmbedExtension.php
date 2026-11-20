@@ -94,16 +94,20 @@ class MediaEmbedExtension implements ExtensionProvider
     protected function claim(Claim $claim): ?Node
     {
         $content = $this->extractChildText($claim->node);
-        if ($this->resolveNode($claim->name, $content, self::attrs($claim->node)) === null) {
+        $media = $this->resolveNode($claim->name, $content, self::attrs($claim->node));
+        if ($media === null) {
             return null;
         }
-
+        $label = new Node('text', []);
+        $label->f['value'] = $media->getEmbedSrc();
+        $link = new Node('link', [$label]);
+        $link->f['href'] = $media->getEmbedSrc();
         $node = new Node('inline_extension', []);
         $node->f = [
             'name' => self::NAME_PREFIX . $claim->name,
             'version' => self::VERSION,
             'props' => ['type' => $claim->name, 'content' => $content],
-            'fallback' => [$claim->copyNode()],
+            'fallback' => [$link],
         ];
 
         return $node;
