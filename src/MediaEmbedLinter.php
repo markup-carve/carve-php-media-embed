@@ -4,17 +4,14 @@ declare(strict_types=1);
 
 namespace MarkupCarve\MediaEmbed;
 
-use MarkupCarve\Carve\CarveConverter;
-use MarkupCarve\Carve\Lint\LintWarning;
-use MarkupCarve\Carve\Lint\SourceOffsets;
-use MarkupCarve\Carve\Node\Block\Comment;
-use MarkupCarve\Carve\Node\Inline\InlineExtension;
-use MarkupCarve\Carve\Node\Node;
+use MarkupCarve\Carve\Carve;
+use MarkupCarve\Carve\Diagnostics\Diagnostic;
+use MarkupCarve\Carve\Node;
 
 /**
- * Reports media directives that render no embed. carve-php's `DocumentLinter` has no
- * extension hook, so callers merge these warnings with its result. `carve-lint-*`
- * suppression comments apply here too, because `DocumentLinter` only filters its own.
+ * Reports media directives that render no embed. `Carve::lint()` has no extension hook, so callers merge
+ * these diagnostics with its result. `carve-lint-*` control comments (C2-B-215, C2-B-216) apply here too,
+ * because `Carve::lint()` only filters its own findings.
  */
 class MediaEmbedLinter
 {
@@ -39,69 +36,82 @@ class MediaEmbedLinter
     }
 
     /**
+     * Diagnostics on channel `lint` with severity `warning`; the range is in UTF-8 bytes (C2-A-173).
+     *
      * @param string $source
      *
-     * @return list<\MarkupCarve\Carve\Lint\LintWarning>
+     * @return list<\MarkupCarve\Carve\Diagnostics\Diagnostic>
      */
     public function lint(string $source): array
     {
-        $converter = new CarveConverter();
-        $converter->getParser()->enablePositionTracking();
-        $document = $converter->parse($source);
+        $document = Carve::parse($source);
 
-        $byteAt = SourceOffsets::map($source);
         $warnings = [];
         $directives = [];
-        $this->collect($document, $source, $byteAt, strlen($source), $warnings, $directives);
+        $this->collect($document, '', $source, $warnings, $directives);
 
-        return $this->applySuppressions($warnings, $directives);
+        return $this->applySuppressions($warnings, $directives, $source);
     }
 
     /**
-     * @param \MarkupCarve\Carve\Node\Node $node
+     * The 1-based line a byte offset of the source falls on.
+     *
      * @param string $source
-     * @param array<int, int>|null $byteAt
-     * @param int $length
-     * @param list<\MarkupCarve\Carve\Lint\LintWarning> $warnings
+     * @param int $offset
+     *
+     * @return int
+     */
+    public static function lineOf(string $source, int $offset): int
+    {
+        return substr_count($source, "\n", 0, max(0, min($offset, strlen($source)))) + 1;
+    }
+
+    /**
+     * @param \MarkupCarve\Carve\Node $node
+     * @param string $path RFC 6901 pointer of the node.
+     * @param string $source
+     * @param list<\MarkupCarve\Carve\Diagnostics\Diagnostic> $warnings
      * @param list<array{0: int, 1: string, 2: array<string>}> $directives Line, action, rule ids.
      *
      * @return void
      */
-    protected function collect(Node $node, string $source, ?array $byteAt, int $length, array &$warnings, array &$directives): void
+    protected function collect(Node $node, string $path, string $source, array &$warnings, array &$directives): void
     {
-        if ($node instanceof InlineExtension) {
+        if ($node->type === 'inline_extension') {
             $finding = $this->extension->diagnose($node);
             if ($finding !== null) {
-                $warnings[] = $this->warning($node, $finding[0], $finding[1], $byteAt, $length);
+                $warnings[] = new Diagnostic($finding[0], 'warning', 'lint', $finding[1], $path, $node->start, $node->end);
             }
         }
 
-        $pos = $node->getPos();
-        // Only a `%% ` line or trailing comment carries a directive; `{% %}` and fenced bodies are inert.
-        if (
-            $node instanceof Comment && $node->getFenceLength() === null && $pos !== null
-            && substr($source, SourceOffsets::toByte($pos->startOffset, $byteAt, $length), 3) === '%% '
-            && preg_match('/^carve-lint-(disable-next-line|disable-line|disable|enable)(?:[ \t]+(.*))?$/', $node->getContent(), $match)
-        ) {
-            $directives[] = [$pos->startLine, $match[1], preg_split('/[ ,]+/', trim($match[2] ?? ''), -1, PREG_SPLIT_NO_EMPTY) ?: []];
+        // Only a `%% ` line or trailing comment carries a directive; braced and block comments are inert.
+        if ($node->type === 'comment' && ($node->f['form'] ?? null) === 'line' && $node->start >= 0) {
+            $marker = strpos($source, '%%', $node->start);
+            if (
+                $marker !== false && ($source[$marker + 2] ?? '') === ' '
+                && preg_match('/^carve-lint-(disable-next-line|disable-line|disable|enable)(?:[ \t]+(.*))?$/', (string)($node->f['value'] ?? ''), $match)
+            ) {
+                $directives[] = [self::lineOf($source, $node->start), $match[1], preg_split('/[ ,]+/', trim($match[2] ?? ''), -1, PREG_SPLIT_NO_EMPTY) ?: []];
+            }
         }
 
-        foreach ($node->getChildren() as $child) {
-            $this->collect($child, $source, $byteAt, $length, $warnings, $directives);
+        foreach ($node->children ?? [] as $i => $child) {
+            $this->collect($child, $path . '/children/' . $i, $source, $warnings, $directives);
         }
     }
 
     /**
-     * Drop warnings silenced by `carve-lint-*` comments, with carve-php's `DocumentLinter`
+     * Drop warnings silenced by `carve-lint-*` comments, with `Carve::lint()`
      * semantics: line and next-line scopes hold regardless of document scope, and for a rule
      * the last document-scope directive above the warning wins.
      *
-     * @param list<\MarkupCarve\Carve\Lint\LintWarning> $warnings
+     * @param list<\MarkupCarve\Carve\Diagnostics\Diagnostic> $warnings
      * @param list<array{0: int, 1: string, 2: array<string>}> $directives
+     * @param string $source
      *
-     * @return list<\MarkupCarve\Carve\Lint\LintWarning>
+     * @return list<\MarkupCarve\Carve\Diagnostics\Diagnostic>
      */
-    protected function applySuppressions(array $warnings, array $directives): array
+    protected function applySuppressions(array $warnings, array $directives, string $source): array
     {
         if ($warnings === [] || $directives === []) {
             return $warnings;
@@ -134,8 +144,9 @@ class MediaEmbedLinter
 
         $scopeLines = array_keys($scopes);
 
-        return array_values(array_filter($warnings, static function (LintWarning $warning) use ($lineRules, $scopes, $scopeLines): bool {
-            if (isset($lineRules[$warning->line]['*']) || isset($lineRules[$warning->line][$warning->rule])) {
+        return array_values(array_filter($warnings, static function (Diagnostic $warning) use ($lineRules, $scopes, $scopeLines, $source): bool {
+            $line = self::lineOf($source, $warning->startOffset);
+            if (isset($lineRules[$line]['*']) || isset($lineRules[$line][$warning->code])) {
                 return false;
             }
             // Last scope line at or above the warning, by binary search.
@@ -144,7 +155,7 @@ class MediaEmbedLinter
             $current = [false, []];
             while ($low <= $high) {
                 $mid = intdiv($low + $high, 2);
-                if ($scopeLines[$mid] <= $warning->line) {
+                if ($scopeLines[$mid] <= $line) {
                     $current = $scopes[$scopeLines[$mid]];
                     $low = $mid + 1;
                 } else {
@@ -152,33 +163,7 @@ class MediaEmbedLinter
                 }
             }
 
-            return !($current[1][$warning->rule] ?? $current[0]);
+            return !($current[1][$warning->code] ?? $current[0]);
         }));
-    }
-
-    /**
-     * @param \MarkupCarve\Carve\Node\Inline\InlineExtension $node
-     * @param string $rule
-     * @param string $message
-     * @param array<int, int>|null $byteAt
-     * @param int $length
-     *
-     * @return \MarkupCarve\Carve\Lint\LintWarning
-     */
-    protected function warning(InlineExtension $node, string $rule, string $message, ?array $byteAt, int $length): LintWarning
-    {
-        $pos = $node->getPos();
-        if ($pos === null) {
-            return new LintWarning(1, 1, $rule, $message, 0, 0);
-        }
-
-        return new LintWarning(
-            $pos->startLine,
-            $pos->startColumn,
-            $rule,
-            $message,
-            SourceOffsets::toByte($pos->startOffset, $byteAt, $length),
-            SourceOffsets::toByte($pos->endOffset, $byteAt, $length),
-        );
     }
 }

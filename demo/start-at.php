@@ -15,16 +15,14 @@ declare(strict_types=1);
  * composite forms like `1m30s` are not parsed.
  */
 
-use MarkupCarve\Carve\CarveConverter;
+use MarkupCarve\Carve\Carve;
 use MarkupCarve\MediaEmbed\MediaEmbedExtension;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
 function carve(string $source): string
 {
-    $converter = new CarveConverter();
-    $converter->addExtension(new MediaEmbedExtension());
-    $html = $converter->convert($source);
+    $html = Carve::render($source, ['extensions' => [new MediaEmbedExtension()]]);
 
     // Demo-only: upgrade protocol-relative provider URLs so embeds load over http.
     return str_replace(['src="//', 'href="//'], ['src="https://', 'href="https://'], $html);

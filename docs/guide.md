@@ -12,16 +12,30 @@ Powered by [dereuromark/media-embed](https://github.com/dereuromark/media-embed)
 composer require markup-carve/carve-php-media-embed
 ```
 
-Requires PHP 8.2+ and `markup-carve/carve-php` 0.1.17 or later.
+Requires PHP 8.2+ and `markup-carve/carve-php` 0.2. The 0.2 engine is not released yet: this
+branch pins carve-php `next2` by commit through a Composer VCS repository, so add the same
+repository to your project:
+
+```json
+"repositories": [{"type": "vcs", "url": "https://github.com/markup-carve/carve-php"}]
+```
 
 ## Quick Start
 
 ```php
-$converter = new \MarkupCarve\Carve\CarveConverter();
-$converter->addExtension(new \MarkupCarve\MediaEmbed\MediaEmbedExtension());
+use MarkupCarve\Carve\Carve;
+use MarkupCarve\MediaEmbed\MediaEmbedExtension;
 
-echo $converter->convert(':youtube[dQw4w9WgXcQ]');
+echo Carve::render(':youtube[dQw4w9WgXcQ]', ['extensions' => [new MediaEmbedExtension()]]);
 ```
+
+`MediaEmbedExtension` is an `ExtensionProvider` (provisional in Carve 0.2). Pass the same
+instance in the `extensions` option of every call that reads the document (`Carve::parse()`,
+`Carve::render()`, `Carve::format()`, `Carve::write()`), so the directives are claimed the
+same way everywhere. It registers one inline extension per directive name, named
+`media-embed.<name>` (version `1`): the catchall and every provider slug MediaEmbed knows.
+A directive that resolves to no embed is not claimed and renders as the engine's
+`<span class="ext-NAME">`.
 
 ## Syntax
 
@@ -125,12 +139,13 @@ still renders normally.
 Pass config as the second constructor argument:
 
 ```php
-$converter->addExtension(new \MarkupCarve\MediaEmbed\MediaEmbedExtension(null, [
+$extension = new \MarkupCarve\MediaEmbed\MediaEmbedExtension(null, [
     'catchall'  => 'media',          // directive name for URL-based catchall
     'width'     => 560,              // iframe width in pixels
     'height'    => 315,              // iframe height in pixels
     'providers' => ['youtube', 'vimeo'],  // whitelist; null = all providers
-]));
+    'linkOnly'  => false,            // true = always write a link, never an iframe
+]);
 ```
 
 | Key | Type | Default | Description |
@@ -139,6 +154,7 @@ $converter->addExtension(new \MarkupCarve\MediaEmbed\MediaEmbedExtension(null, [
 | `width` | `int` | provider default | Override the iframe `width` attribute. |
 | `height` | `int` | provider default | Override the iframe `height` attribute. |
 | `providers` | `array<string>` or `null` | `null` | Whitelist of allowed provider slugs. Applies to both per-provider and catchall directives. `null` means all providers are allowed. |
+| `linkOnly` | `bool` | `false` | Write every embed as a plain link, whatever the profile. For a host that renders untrusted text with the `full` or `article` profile. |
 
 ### Injecting a Preconfigured MediaEmbed Instance
 
@@ -153,7 +169,7 @@ $mediaEmbed = new MediaEmbed();
 // $mediaEmbed->addProviderConfig(ProviderConfig::fromArray([...]));  // custom provider
 // inject cache / HTTP client via MediaEmbed's own API
 
-$converter->addExtension(new \MarkupCarve\MediaEmbed\MediaEmbedExtension($mediaEmbed));
+$extension = new \MarkupCarve\MediaEmbed\MediaEmbedExtension($mediaEmbed);
 ```
 
 Refer to [media-embed's documentation](https://github.com/dereuromark/media-embed) for the
@@ -161,51 +177,53 @@ full configuration API.
 
 ## Output and Degradation
 
-The extension adapts its output to the active renderer and safe-mode settings.
+The extension adapts its output to the render options.
 
 | Context | Output |
 |---|---|
-| HTML renderer, interactive mode (default) | `<iframe ...>` |
-| HTML renderer, static mode (`$converter->setRenderMode('static')`) | `<a href rel="noopener noreferrer">` |
-| HTML renderer, safe mode with `RAW_HTML_STRIP` or `RAW_HTML_ESCAPE` | `<a href rel="noopener noreferrer">` |
-| HTML renderer, safe mode with `RAW_HTML_ALLOW` | `<iframe ...>` |
-| Markdown / PlainText renderer | `[name](embed-url)` |
-| ANSI renderer | Carve default rendering (known limitation - no event hook) |
+| `Carve::render()`, profile `full` (default) or `article`, interactive mode | `<iframe ...>` |
+| `mode: static` (the build-time renderer) | `<a href rel="noopener noreferrer">` |
+| profile `comment` or `minimal` (untrusted content) | `<a href rel="noopener noreferrer">` |
+| config `linkOnly: true` | `<a href rel="noopener noreferrer">` |
+| Markdown / plain-text / ANSI writer | not available yet in carve-php 0.2 ([carve-php#5263](https://github.com/markup-carve/carve-php/issues/5263)) |
 
-A plain `new CarveConverter()` has no restricting safe mode configured, so iframes render
-out of the box. If you enable safe mode and still want iframes, explicitly allow raw HTML:
+Carve 0.1 chose between iframe and link by the safe mode. In 0.2 safe mode is the profile
+plus the URL policy, and the `rawHtml` option governs author-written raw HTML only: the
+iframe is written by this trusted extension renderer, not by the author. So render untrusted
+documents with the `comment` or `minimal` profile, or set `linkOnly`, to get links.
 
 ```php
-use MarkupCarve\Carve\SafeMode;
-
-$converter->setSafeMode(
-    (new \MarkupCarve\Carve\SafeMode())->setRawHtmlMode(SafeMode::RAW_HTML_ALLOW)
-);
+$html = Carve::render($source, [
+    'extensions' => [new MediaEmbedExtension()],
+    'profile' => 'comment',
+]);
 ```
 
 ## Linting
 
-A directive that resolves to no embed renders nothing, so a typo in a URL goes
-unnoticed. `MediaEmbedLinter` reports those directives. carve-php's
-`DocumentLinter` has no extension hook, so merge the two results:
+A directive that resolves to no embed renders no player, so a typo in a URL goes
+unnoticed. `MediaEmbedLinter` reports those directives. `Carve::lint()` has no
+extension hook, so merge the two results:
 
 ```php
-use MarkupCarve\Carve\Lint\DocumentLinter;
+use MarkupCarve\Carve\Carve;
 use MarkupCarve\MediaEmbed\MediaEmbedExtension;
 use MarkupCarve\MediaEmbed\MediaEmbedLinter;
 
 $extension = new MediaEmbedExtension(null, ['providers' => ['youtube', 'vimeo']]);
 
-$warnings = array_merge(
-    (new DocumentLinter())->lint($source, ['extensions' => [$extension]]),
+$diagnostics = array_merge(
+    Carve::lint($source),
     (new MediaEmbedLinter($extension))->lint($source),
 );
 ```
 
 Pass the same configured extension you render with, so the linter applies the same
-catchall name, provider allowlist and `MediaEmbed` instance. Warnings are
-`MarkupCarve\Carve\Lint\LintWarning` objects with the usual line, column and byte
-offsets.
+catchall name, provider allowlist and `MediaEmbed` instance. Findings are
+`MarkupCarve\Carve\Diagnostics\Diagnostic` objects like those of `Carve::lint()`:
+channel `lint`, severity `warning`, the rule in `code`, a UTF-8 byte range
+(`startOffset`, `endOffset`) and a tree `path`. `MediaEmbedLinter::lineOf($source, $offset)`
+gives the line of an offset.
 
 | Rule | Reported when |
 |---|---|
@@ -214,7 +232,7 @@ offsets.
 
 Directives of other extensions (`:kbd[...]` and similar) are not reported.
 
-`DocumentLinter` drops its own findings under `carve-lint-*` suppression comments,
+`Carve::lint()` drops its own findings under `carve-lint-*` suppression comments,
 but not the warnings you merge in afterwards. `MediaEmbedLinter` reads the same
 comments, so one comment silences both:
 
@@ -236,8 +254,8 @@ covers every rule; separate several ids with commas or spaces.
 - Provider URLs come from media-embed's trusted provider templates, not from raw author input.
 - The author-supplied value is only a media ID or full URL, both validated by media-embed
   before any embed code is produced.
-- Unknown provider slugs and unresolvable URLs silently produce no output (the directive is
-  left unhandled). `MediaEmbedLinter` reports them; see [Linting](#linting).
+- Unknown provider slugs and unresolvable URLs produce no embed (the directive is left
+  unclaimed and renders as the engine's `<span class="ext-NAME">`). `MediaEmbedLinter` reports them; see [Linting](#linting).
 - The `start`/`t` directive attributes are validated as non-negative integers before being
   appended as query parameters to the provider URL. Non-numeric values are silently ignored.
 - Degraded links are sanitized with `htmlspecialchars` and carry `rel="noopener noreferrer"`.
