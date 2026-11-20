@@ -9,9 +9,7 @@ use MarkupCarve\MediaEmbed\MediaEmbedExtension;
 use PHPUnit\Framework\TestCase;
 
 /**
- * 0.1 wrote an embed as a Markdown link on the Markdown and plain-text targets. carve-php 0.2 has no such writer
- * yet: they come back on the writer registry (markup-carve/carve-php#5263), so these tests skip until
- * `Carve::writers()` has the target.
+ * The 0.2 Markdown and plain exporters use the extension's core fallback text.
  */
 class NonHtmlRendererTest extends TestCase
 {
@@ -23,12 +21,9 @@ class NonHtmlRendererTest extends TestCase
      */
     protected function write(string $target, string $source): string
     {
-        if (!Carve::writers()->has($target)) {
-            $this->markTestSkipped(sprintf('The %s writer is not available yet in carve-php 0.2 (markup-carve/carve-php#5263).', $target));
-        }
         $extensions = ['extensions' => [new MediaEmbedExtension()]];
 
-        return Carve::writeTo($target, Carve::parse($source, $extensions), $extensions);
+        return Carve::writeTo($target, Carve::parse($source, $extensions));
     }
 
     /**
@@ -45,14 +40,11 @@ class NonHtmlRendererTest extends TestCase
     /**
      * @return void
      */
-    public function testMarkdownLinkHasMarkdownSyntax(): void
+    public function testMarkdownTargetUsesExtensionFallbackText(): void
     {
         $out = $this->write('markdown', ':youtube[dQw4w9WgXcQ]');
 
-        // Must be a Markdown-style link [Name](<url>) with angle-bracket URL - not an HTML anchor.
-        // getEmbedSrc() may return a protocol-relative URL (//host/...).
-        $this->assertMatchesRegularExpression('/\[.+\]\(<(https?:)?\/\/.+>\)/', $out);
-        $this->assertStringNotContainsString('<a ', $out);
+        $this->assertSame("dQw4w9WgXcQ\n", $out);
     }
 
     /**
@@ -73,7 +65,7 @@ class NonHtmlRendererTest extends TestCase
      */
     public function testPlainTextTargetEmitsLink(): void
     {
-        $out = $this->write('text', ':youtube[dQw4w9WgXcQ]');
+        $out = $this->write('plain', ':youtube[dQw4w9WgXcQ]');
 
         $this->assertStringContainsString('dQw4w9WgXcQ', $out);
         $this->assertStringNotContainsString('<iframe', $out);

@@ -57,18 +57,14 @@ class CarvePhpContractTest extends TestCase
     }
 
     /**
-     * The ANSI target leaves the directive to the engine. carve-php 0.2 has no ANSI writer yet
-     * (markup-carve/carve-php#5263).
+     * The ANSI target leaves the directive to the engine's fallback export.
      *
      * @return void
      */
     public function testAnsiWriterIsLeftAlone(): void
     {
-        if (!Carve::writers()->has('ansi')) {
-            $this->markTestSkipped('The ansi writer is not available yet in carve-php 0.2 (markup-carve/carve-php#5263).');
-        }
         $options = ['extensions' => [new MediaEmbedExtension()]];
-        $this->assertStringNotContainsString('<iframe', Carve::writeTo('ansi', Carve::parse(':youtube[dQw4w9WgXcQ]', $options), $options));
+        $this->assertStringNotContainsString('<iframe', Carve::writeTo('ansi', Carve::parse(':youtube[dQw4w9WgXcQ]', $options)));
     }
 
     /**
