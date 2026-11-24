@@ -161,8 +161,13 @@ class MediaEmbedExtension implements ExtensionProvider
         }
 
         $name = preg_replace('/([\\\\`*_{}\[\]()#+.!|<>~-])/u', '\\\\$1', $media->name()) ?? $media->name();
+        $href = preg_replace_callback(
+            '/[\x00-\x20\x7F<>()\\\\]/',
+            static fn (array $match): string => rawurlencode($match[0]),
+            $media->getEmbedSrc(),
+        ) ?? $media->getEmbedSrc();
 
-        return '[' . $name . '](' . $media->getEmbedSrc() . ')';
+        return '[' . $name . '](' . $href . ')';
     }
 
     /**

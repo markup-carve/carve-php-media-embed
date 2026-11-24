@@ -68,6 +68,18 @@ class NonHtmlRendererTest extends TestCase
         );
     }
 
+    public function testMarkdownEncodesUnsafeDestinationCharacters(): void
+    {
+        $this->assertSame(
+            "[YouTube](//www.youtube.com/embed/abc%29def?wmode=transparent)\n",
+            $this->write('markdown', ':youtube[abc)def]'),
+        );
+        $this->assertSame(
+            "[YouTube](//www.youtube.com/embed/a%20b?wmode=transparent)\n",
+            $this->write('markdown', ':youtube[a b]'),
+        );
+    }
+
     /**
      * @return void
      */
