@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace MarkupCarve\MediaEmbed;
 
 use MarkupCarve\Carve\Attrs;
+use MarkupCarve\Carve\Export\ExportHost;
 use MarkupCarve\Carve\Extension\Claim;
 use MarkupCarve\Carve\Extension\ExtensionDefinition;
 use MarkupCarve\Carve\Extension\ExtensionProvider;
@@ -69,7 +70,7 @@ class MediaEmbedExtension implements ExtensionProvider
         $names = array_unique(array_merge([(string)$this->config['catchall']], array_map('strval', array_keys($this->mediaEmbed->getHosts()))));
         $definitions = [];
         foreach ($names as $name) {
-            $definitions[] = new ExtensionDefinition(
+            $definitions[] = (new ExtensionDefinition(
                 self::NAME_PREFIX . $name,
                 self::VERSION,
                 [],
@@ -77,7 +78,7 @@ class MediaEmbedExtension implements ExtensionProvider
                 transform: fn (Claim $claim): ?Node => $this->claim($claim),
                 renderer: fn (Node $node, RenderHost $host): string => $this->renderEmbed($node, $host),
                 buildTimeRenderer: fn (Node $node, RenderHost $host): string => $this->renderLink($node),
-            );
+            ))->withExporter('markdown', fn (Node $node, ExportHost $host): string => $this->markdownLink($node));
         }
 
         return $definitions;
@@ -147,6 +148,21 @@ class MediaEmbedExtension implements ExtensionProvider
         }
 
         return $this->stampSource($this->linkFallback($media), $node);
+    }
+
+    /**
+     * Write a provider link for Markdown while leaving the core URL fallback intact.
+     */
+    protected function markdownLink(Node $node): string
+    {
+        $media = $this->mediaFor($node);
+        if ($media === null) {
+            return '';
+        }
+
+        $name = preg_replace('/([\\\\`*_{}\[\]()#+.!|<>~-])/u', '\\\\$1', $media->name()) ?? $media->name();
+
+        return '[' . $name . '](' . $media->getEmbedSrc() . ')';
     }
 
     /**

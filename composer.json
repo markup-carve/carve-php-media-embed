@@ -22,7 +22,7 @@
     ],
     "require": {
         "php": ">=8.2",
-        "markup-carve/carve-php": "dev-next2#6ceebc52181efc1f5dfe6f5e7964b75c43f13a90",
+        "markup-carve/carve-php": "dev-next2#440e3274753acc37b621014ce1e3bf06c864b6d9",
         "dereuromark/media-embed": "^1.0"
     },
     "require-dev": {

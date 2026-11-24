@@ -185,7 +185,13 @@ The extension adapts its output to the render options.
 | `mode: static` (the build-time renderer) | `<a href rel="noopener noreferrer">` |
 | profile `comment` or `minimal` (untrusted content) | `<a href rel="noopener noreferrer">` |
 | config `linkOnly: true` | `<a href rel="noopener noreferrer">` |
-| Markdown / plain-text / ANSI writer | not available yet in carve-php 0.2 ([carve-php#5263](https://github.com/markup-carve/carve-php/issues/5263)) |
+| Markdown writer | `[provider name](embed-url)` |
+| Plain-text and ANSI writers | Embed URL from the core fallback |
+
+Pass the extension in the `extensions` option to both `Carve::parse()` and
+`Carve::writeTo()` so the Markdown writer can use the provider name. Without
+the extension at write time, it writes the core fallback link with the URL as
+its label.
 
 Carve 0.1 chose between iframe and link by the safe mode. In 0.2 safe mode is the profile
 plus the URL policy, and the `rawHtml` option governs author-written raw HTML only: the
