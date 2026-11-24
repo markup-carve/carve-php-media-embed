@@ -9,7 +9,7 @@ use MarkupCarve\MediaEmbed\MediaEmbedExtension;
 use PHPUnit\Framework\TestCase;
 
 /**
- * The 0.2 Markdown and plain exporters use the extension's core fallback text.
+ * The 0.2 exporters use target-specific output when registered, and otherwise use the core fallback.
  */
 class NonHtmlRendererTest extends TestCase
 {
@@ -23,7 +23,7 @@ class NonHtmlRendererTest extends TestCase
     {
         $extensions = ['extensions' => [new MediaEmbedExtension()]];
 
-        return Carve::writeTo($target, Carve::parse($source, $extensions));
+        return Carve::writeTo($target, Carve::parse($source, $extensions), $extensions);
     }
 
     /**
@@ -40,11 +40,44 @@ class NonHtmlRendererTest extends TestCase
     /**
      * @return void
      */
-    public function testMarkdownTargetUsesExtensionLinkFallback(): void
+    public function testMarkdownTargetUsesProviderTitle(): void
     {
         $out = $this->write('markdown', ':youtube[dQw4w9WgXcQ]');
 
-        $this->assertSame("[//www.youtube.com/embed/dQw4w9WgXcQ?wmode=transparent](//www.youtube.com/embed/dQw4w9WgXcQ?wmode=transparent)\n", $out);
+        $this->assertSame("[YouTube](//www.youtube.com/embed/dQw4w9WgXcQ?wmode=transparent)\n", $out);
+    }
+
+    public function testMarkdownUsesResolvedProviderForCatchallAndProviderDirectives(): void
+    {
+        $source = ':vimeo[76979871] :media[https://vimeo.com/76979871]';
+
+        $this->assertSame(
+            "[Vimeo](//player.vimeo.com/video/76979871?wmode=transparent) [Vimeo](//player.vimeo.com/video/76979871?wmode=transparent)\n",
+            $this->write('markdown', $source),
+        );
+    }
+
+    public function testUnregisteredExportKeepsCoreFallback(): void
+    {
+        $extensions = ['extensions' => [new MediaEmbedExtension()]];
+        $tree = Carve::parse(':youtube[dQw4w9WgXcQ]', $extensions);
+
+        $this->assertSame(
+            "[//www.youtube.com/embed/dQw4w9WgXcQ?wmode=transparent](//www.youtube.com/embed/dQw4w9WgXcQ?wmode=transparent)\n",
+            Carve::writeTo('markdown', $tree),
+        );
+    }
+
+    public function testMarkdownEncodesUnsafeDestinationCharacters(): void
+    {
+        $this->assertSame(
+            "[YouTube](//www.youtube.com/embed/abc%29def?wmode=transparent)\n",
+            $this->write('markdown', ':youtube[abc)def]'),
+        );
+        $this->assertSame(
+            "[YouTube](//www.youtube.com/embed/a%20b?wmode=transparent)\n",
+            $this->write('markdown', ':youtube[a b]'),
+        );
     }
 
     /**
