@@ -1,6 +1,6 @@
 # carve-php-media-embed
 
-Media embed extension for `markup-carve/carve-php` 0.2 (the `next2` branch; unreleased). It resolves provider directives through `dereuromark/media-embed`. See the [Carve documentation](https://markup-carve.github.io/carve/).
+Media embed extension for `markup-carve/carve-php` 0.2 (unreleased; Carve 0.1 users stay on the `0.1` branch). It resolves provider directives through `dereuromark/media-embed`. See the [Carve documentation](https://markup-carve.github.io/carve/).
 
 ## Install
 
