@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, next, next2]
+    branches: [main, next]
   pull_request:
 
 # Each job declares timeout-minutes so a hung step fails fast

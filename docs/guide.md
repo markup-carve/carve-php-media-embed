@@ -13,7 +13,7 @@ composer require markup-carve/carve-php-media-embed
 ```
 
 Requires PHP 8.2+ and `markup-carve/carve-php` 0.2. The 0.2 engine is not released yet: this
-branch pins carve-php `next2` by commit through a Composer VCS repository, so add the same
+branch pins a carve-php `main` commit through a Composer VCS repository, so add the same
 repository to your project:
 
 ```json
