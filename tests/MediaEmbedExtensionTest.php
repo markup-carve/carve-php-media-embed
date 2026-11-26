@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace MarkupCarve\MediaEmbed\Test;
 
-use MarkupCarve\Carve\CarveConverter;
-use MarkupCarve\Carve\SafeMode;
+use MarkupCarve\Carve\Carve;
 use MarkupCarve\MediaEmbed\MediaEmbedExtension;
 use PHPUnit\Framework\TestCase;
 
@@ -14,15 +13,13 @@ class MediaEmbedExtensionTest extends TestCase
     /**
      * @param string $input
      * @param array<string, mixed> $config
+     * @param array<string, mixed> $options Carve render options.
      *
      * @return string
      */
-    protected function convert(string $input, array $config = []): string
+    protected function convert(string $input, array $config = [], array $options = []): string
     {
-        $converter = new CarveConverter();
-        $converter->addExtension(new MediaEmbedExtension(null, $config));
-
-        return $converter->convert($input);
+        return Carve::render($input, ['extensions' => [new MediaEmbedExtension(null, $config)]] + $options);
     }
 
     /**
@@ -111,6 +108,27 @@ class MediaEmbedExtensionTest extends TestCase
             $strip = fn (string $out): string => (string)preg_replace('/ data-carve-source="[^"]*"/', '', $out);
             $this->assertSame($strip($html), $strip($this->convert($stamped)), $source);
         }
+    }
+
+    /**
+     * One qualified inline extension per directive name: the catchall and every provider slug (C2-X-001, C2-X-006).
+     *
+     * @return void
+     */
+    public function testDefinitionsCoverCatchallAndProviders(): void
+    {
+        $definitions = (new MediaEmbedExtension(null, ['catchall' => 'embed']))->definitions();
+        $byName = [];
+        foreach ($definitions as $definition) {
+            $byName[$definition->name] = $definition;
+        }
+
+        $this->assertArrayHasKey('media-embed.embed', $byName);
+        $this->assertArrayHasKey('media-embed.youtube', $byName);
+        $this->assertArrayNotHasKey('media-embed.media', $byName);
+        $this->assertSame(['form' => 'inline', 'name' => 'youtube'], $byName['media-embed.youtube']->matcher);
+        $this->assertSame(MediaEmbedExtension::VERSION, $byName['media-embed.youtube']->version);
+        $this->assertNotNull($byName['media-embed.youtube']->buildTimeRenderer);
     }
 
     /**
@@ -207,14 +225,14 @@ class MediaEmbedExtensionTest extends TestCase
     }
 
     /**
+     * 0.1 safe mode (raw HTML strip) is the `comment` profile in 0.2 (carve-php migration guide: `setSafeMode` becomes `profile`; C2-X-034: the renderer
+     * applies the profile), and an embed degrades to a link there.
+     *
      * @return void
      */
-    public function testSafeModeStripEmitsLinkNotIframe(): void
+    public function testCommentProfileEmitsLinkNotIframe(): void
     {
-        $converter = new CarveConverter();
-        $converter->setSafeMode((new SafeMode())->setRawHtmlMode(SafeMode::RAW_HTML_STRIP));
-        $converter->addExtension(new MediaEmbedExtension());
-        $html = $converter->convert(':youtube[dQw4w9WgXcQ]');
+        $html = $this->convert(':youtube[dQw4w9WgXcQ]', [], ['profile' => 'comment']);
 
         $this->assertStringNotContainsString('<iframe', $html);
         $this->assertStringContainsString('<a ', $html);
@@ -223,14 +241,13 @@ class MediaEmbedExtensionTest extends TestCase
     }
 
     /**
+     * 0.1 safe mode (raw HTML escape) maps to the `minimal` profile the same way (C2-H-163, C2-X-034).
+     *
      * @return void
      */
-    public function testSafeModeEscapeEmitsLinkNotIframe(): void
+    public function testMinimalProfileEmitsLinkNotIframe(): void
     {
-        $converter = new CarveConverter();
-        $converter->setSafeMode((new SafeMode())->setRawHtmlMode(SafeMode::RAW_HTML_ESCAPE));
-        $converter->addExtension(new MediaEmbedExtension());
-        $html = $converter->convert(':youtube[dQw4w9WgXcQ]');
+        $html = $this->convert(':youtube[dQw4w9WgXcQ]', [], ['profile' => 'minimal']);
 
         $this->assertStringNotContainsString('<iframe', $html);
         $this->assertStringContainsString('<a ', $html);
@@ -239,32 +256,64 @@ class MediaEmbedExtensionTest extends TestCase
     }
 
     /**
+     * The `linkOnly` setting degrades every embed whatever the profile, for a host that keeps `full`.
+     *
      * @return void
      */
-    public function testSafeModeAllowStillEmitsIframe(): void
+    public function testLinkOnlyConfigEmitsLinkNotIframe(): void
     {
-        $converter = new CarveConverter();
-        $converter->setSafeMode((new SafeMode())->setRawHtmlMode(SafeMode::RAW_HTML_ALLOW));
-        $converter->addExtension(new MediaEmbedExtension());
-        $html = $converter->convert(':youtube[dQw4w9WgXcQ]');
+        $html = $this->convert(':youtube[dQw4w9WgXcQ]', ['linkOnly' => true]);
 
-        $this->assertStringContainsString('<iframe', $html);
+        $this->assertStringNotContainsString('<iframe', $html);
+        $this->assertStringContainsString('rel="noopener noreferrer"', $html);
     }
 
     /**
+     * 0.1 safe mode allowing raw HTML corresponds to the trusted `full` and `article` profiles (C2-H-163).
+     *
+     * @return void
+     */
+    public function testTrustedProfilesStillEmitIframe(): void
+    {
+        $this->assertStringContainsString('<iframe', $this->convert(':youtube[dQw4w9WgXcQ]', [], ['profile' => 'full']));
+        $this->assertStringContainsString('<iframe', $this->convert(':youtube[dQw4w9WgXcQ]', [], ['profile' => 'article']));
+    }
+
+    /**
+     * Static mode selects the build-time renderer, which writes the link (C2-X-052).
+     *
      * @return void
      */
     public function testStaticModeEmitsLinkNotIframe(): void
     {
-        $converter = new CarveConverter();
-        $converter->setRenderMode('static');
-        $converter->addExtension(new MediaEmbedExtension());
-        $html = $converter->convert(':youtube[dQw4w9WgXcQ]');
+        $html = $this->convert(':youtube[dQw4w9WgXcQ]', [], ['mode' => 'static']);
 
         $this->assertStringNotContainsString('<iframe', $html);
         $this->assertStringContainsString('<a ', $html);
         $this->assertStringContainsString('dQw4w9WgXcQ', $html);
         $this->assertStringContainsString('rel="noopener noreferrer"', $html);
+    }
+
+    /**
+     * The extension node writes back as the directive it was claimed from (C2-X-024), so `format` keeps it.
+     *
+     * @return void
+     */
+    public function testFormatKeepsTheDirective(): void
+    {
+        $extensions = ['extensions' => [new MediaEmbedExtension()]];
+        $this->assertSame(":youtube[dQw4w9WgXcQ]\n", Carve::format(':youtube[dQw4w9WgXcQ]', $extensions));
+        $this->assertSame(":media[https://example.com/clip]\n", Carve::format(':media[https://example.com/clip]', $extensions));
+    }
+
+    /**
+     * Quote characters in a directive body reach the provider as typed, not as smart punctuation.
+     *
+     * @return void
+     */
+    public function testBodyQuotesAreNotSmartened(): void
+    {
+        $this->assertStringContainsString('embed/a&quot;b', $this->convert(':youtube[a"b]'));
     }
 
     /**

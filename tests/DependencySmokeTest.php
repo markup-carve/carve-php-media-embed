@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace MarkupCarve\MediaEmbed\Test;
 
-use MarkupCarve\Carve\CarveConverter;
+use MarkupCarve\Carve\Carve;
 use MediaEmbed\MediaEmbed;
 use PHPUnit\Framework\TestCase;
 
@@ -15,7 +15,7 @@ class DependencySmokeTest extends TestCase
      */
     public function testDependenciesAutoload(): void
     {
-        $this->assertTrue(class_exists(CarveConverter::class));
+        $this->assertTrue(class_exists(Carve::class));
         $this->assertTrue(class_exists(MediaEmbed::class));
     }
 
@@ -24,8 +24,7 @@ class DependencySmokeTest extends TestCase
      */
     public function testCarveConvertsPlainText(): void
     {
-        $converter = new CarveConverter();
-        $html = $converter->convert('Hello');
+        $html = Carve::render('Hello');
         $this->assertStringContainsString('Hello', $html);
     }
 }

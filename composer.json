@@ -14,9 +14,15 @@
         "issues": "https://github.com/markup-carve/carve-php-media-embed/issues",
         "source": "https://github.com/markup-carve/carve-php-media-embed"
     },
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/markup-carve/carve-php"
+        }
+    ],
     "require": {
         "php": ">=8.2",
-        "markup-carve/carve-php": "^0.1.17",
+        "markup-carve/carve-php": "dev-next2#440e3274753acc37b621014ce1e3bf06c864b6d9",
         "dereuromark/media-embed": "^1.0"
     },
     "require-dev": {
@@ -51,7 +57,8 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.1.x-dev"
+            "dev-main": "0.1.x-dev",
+            "dev-next2": "0.2.x-dev"
         }
     }
 }

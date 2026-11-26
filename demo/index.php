@@ -10,7 +10,7 @@ declare(strict_types=1);
  * then open http://127.0.0.1:8910/
  */
 
-use MarkupCarve\Carve\CarveConverter;
+use MarkupCarve\Carve\Carve;
 use MarkupCarve\MediaEmbed\MediaEmbedExtension;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
@@ -20,9 +20,7 @@ require dirname(__DIR__) . '/vendor/autoload.php';
  */
 function carve(string $source): string
 {
-    $converter = new CarveConverter();
-    $converter->addExtension(new MediaEmbedExtension());
-    $html = $converter->convert($source);
+    $html = Carve::render($source, ['extensions' => [new MediaEmbedExtension()]]);
 
     // Demo-only: upgrade protocol-relative provider URLs (//host) to https so the
     // embeds load when this page is served over plain http. Not part of the library.
