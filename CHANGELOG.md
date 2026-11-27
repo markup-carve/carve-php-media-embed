@@ -2,23 +2,23 @@
 
 ## [Unreleased]
 
-### Changed
+## [0.2.0] - 2026-11-27
 
-- Port to Carve 0.2 (carve-php `next2`): `MediaEmbedExtension` is an `ExtensionProvider`
+### Breaking
+
+- Port to Carve 0.2 (carve-php `main`): `MediaEmbedExtension` is an `ExtensionProvider`
   passed in the `extensions` option of `Carve::render()`, with one `media-embed.<name>`
   inline extension per directive name. Static mode writes the link through the build-time
   renderer; the `comment` and `minimal` profiles replace 0.1 safe mode for the link fallback
 - `MediaEmbedLinter::lint()` returns `Diagnostics\Diagnostic` objects (byte range, tree
   path); `MediaEmbedLinter::lineOf()` derives the line. `diagnose()` takes a 0.2 `Node`
 
-### Added
+### Improvements
 
 - `linkOnly` config key writes every embed as a link
-
-### Removed
-
-- Markdown and plain-text link output, until carve-php 0.2 has those writers
-  (markup-carve/carve-php#5263)
+- The Markdown writer writes an embed as `[provider name](embed-url)` when the extension
+  is passed to `Carve::writeTo()`; the plain-text and ANSI writers write the embed URL
+  (#26, #29, #31)
 
 ## [0.1.7] - 2026-11-12
 
